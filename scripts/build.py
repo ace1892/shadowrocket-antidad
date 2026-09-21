@@ -10,12 +10,16 @@
   modules/antidad-full.module
   modules/antidad-lite.module
   modules/antidad-strict.module
+  modules/antidad-zhihu.module     （补丁档：含 [MITM]，必须开 HTTPS 解密）
 
 设计要点：
   1. 模块的 [Rule] 段支持 RULE-SET / DOMAIN-SET 远程引用（社区实证，官方手册无明文）。
      所以本仓库**不需要**把 5.7 MB 域名集存进来 —— 模块直接引用上游，体积只有几 KB。
   2. 白名单必须排在最前（规则自上而下、命中即停）。
   3. 引用类型不能写错：域名集必须 DOMAIN-SET，关键词/IP 集必须 RULE-SET。
+  4. kind=INLINE 的源把规则**原文内联**进模块，不远程引用 —— 用于「上游会重组目录」
+     的场景（本项目亲历过一次模块引用 404 静默死亡）。INLINE 源可带 mitm 字段，
+     渲染时在文末生成 [MITM] hostname = %APPEND% 段（追加，不覆盖别人的声明）。
 
 用法：
   python3 scripts/build.py            # 写入 modules/
@@ -59,6 +63,17 @@ PROFILES = [
         "desc": "整合版 + LOWERTOP AntiAD（额外拦遥测/推送域，会误杀，先读 README）",
         "sources": ["antiad", "bm-domain", "bm-keyword-ip", "lt-antiad"],
     },
+    {
+        # 知乎广告走的是「正经域名下的路径」，域名级规则原理上拦不到（见 README）。
+        # 这是一次**补丁**，不是第四档 —— 它必须开 MITM 才有意义，
+        # 所以单独成文件，不愿意开解密的人可以不装。
+        "file": "antidad-zhihu.module",
+        "name": "反广告 · 知乎补丁",
+        "desc": "知乎广告专用 · 官方 ZhihuAds 规则内联 · ⚠️ 必须开 HTTPS 解密才生效",
+        "sources": ["zhihu-inline"],
+        # Qure 图标库里没有 zhihu 图标（实测 404），故用 AdBlack 与前三档的 Advertising 区分。
+        "icon": "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdBlack.png",
+    },
 ]
 
 CST = timezone(timedelta(hours=8))
@@ -101,11 +116,16 @@ def parse_whitelist(text: str):
 
 def render(profile, sources, whitelist_rules, measured_at):
     now = datetime.now(CST).strftime("%Y-%m-%d %H:%M (UTC+8)")
+    used = [sources[s] for s in profile["sources"]]
+    mitm_hosts = [s["mitm"] for s in used if s.get("mitm")]
+    needs_mitm = bool(mitm_hosts)
+    icon = profile.get("icon", ICON)
+
     out = [
         f"#!name= {profile['name']}",
         f"#!desc= {profile['desc']}",
         f"#!author= ace1892 · 仓库 https://github.com/{REPO}",
-        f"#!icon= {ICON}",
+        f"#!icon= {icon}",
         "",
         "[Rule]",
         "# " + "=" * 74,
@@ -115,7 +135,11 @@ def render(profile, sources, whitelist_rules, measured_at):
         f"# 生效白名单：{len(whitelist_rules)} 条（来自 whitelist.txt）",
         "#",
         "# 生效前提：小火箭「全局路由」必须设为「配置」，含 [Rule] 的模块才工作。",
-        "# " + "=" * 74,
+    ]
+    if needs_mitm:
+        out.append("# ⚠️ 本模块含 URL-REGEX → 还必须开「HTTPS 解密」并信任根证书。")
+    out.append("# " + "=" * 74)
+    out += [
         "",
         "# " + "-" * 74,
         "# ① 误杀放行（必须最先：规则自上而下、命中即停）",
@@ -133,25 +157,53 @@ def render(profile, sources, whitelist_rules, measured_at):
             "",
             "# " + "-" * 74,
             f"# {chr(0x2460 + idx - 1)} {src['name']}",
-            f"#     引用类型必须 {src['kind']} · 上游基线 {m['entries']:,} 条 / {m['bytes']:,} 字节",
-            f"#     来源 {src['homepage']}",
         ]
+        if src["kind"] == "INLINE":
+            out.append(
+                f"#     内联 {m['entries']} 条 / {m['bytes']:,} 字节"
+                f"（不远程引用，规避上游重组目录导致的静默失效）")
+        else:
+            out.append(
+                f"#     引用类型必须 {src['kind']}"
+                f" · 上游基线 {m['entries']:,} 条 / {m['bytes']:,} 字节")
+        out.append(f"#     来源 {src['homepage']}")
         if src["note"].startswith("⚠️"):
             out.append(f"#     {src['note']}")
         out.append("# " + "-" * 74)
-        out.append(f"{src['kind']},{src['url']},REJECT")
+        if src["kind"] == "INLINE":
+            out += list(src["rules"])
+        else:
+            out.append(f"{src['kind']},{src['url']},REJECT")
+
+    if needs_mitm:
+        out += [
+            "",
+            "[MITM]",
+            "# %APPEND% = 追加到现有解密列表，不覆盖其它模块（含配置里已有的声明）。",
+            f"hostname = %APPEND% {','.join(mitm_hosts)}",
+        ]
 
     out += [
         "",
         "# " + "-" * 74,
         "# 备注",
         "# " + "-" * 74,
-        "# · 纯 REJECT，不含 URL 重写 / 脚本 → 不需要开 MITM、不用装证书。",
+    ]
+    if needs_mitm:
+        out += [
+            "# · ⚠️ 含 URL-REGEX：未开「HTTPS 解密」+ 未信任根证书时，这些规则**静默不生效**"
+            "（小火箭不报错）。",
+            "# · 解密范围见上方 [MITM]。长期不用请直接卸载本模块，避免白付解密开销。",
+        ]
+    else:
+        out.append("# · 纯 REJECT，不含 URL 重写 / 脚本 → 不需要开 MITM、不用装证书。")
+    out += [
         "# · 规则集走 jsDelivr：raw.githubusercontent.com 在本机实测间歇性不通。",
         "#   jsDelivr 的 @分支 引用约有 12 小时缓存延迟，规则集不需要实时，可接受。",
-        "# · URL-REGEX 类规则未开 MITM 时不生效（无害）。",
-        "",
     ]
+    if not needs_mitm:
+        out.append("# · URL-REGEX 类规则未开 MITM 时不生效（无害）。")
+    out.append("")
     return "\n".join(out)
 
 

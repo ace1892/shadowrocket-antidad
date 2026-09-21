@@ -1,0 +1,54 @@
+#!name= 反广告 · 知乎补丁
+#!desc= 知乎广告专用 · 官方 ZhihuAds 规则内联 · ⚠️ 必须开 HTTPS 解密才生效
+#!author= ace1892 · 仓库 https://github.com/ace1892/shadowrocket-antidad
+#!icon= https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdBlack.png
+
+[Rule]
+# ==========================================================================
+# 本文件由 scripts/build.py 生成于 2026-09-21 15:33 (UTC+8)
+# 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
+# 源基线日期：2026-09-21
+# 生效白名单：3 条（来自 whitelist.txt）
+#
+# 生效前提：小火箭「全局路由」必须设为「配置」，含 [Rule] 的模块才工作。
+# ⚠️ 本模块含 URL-REGEX → 还必须开「HTTPS 解密」并信任根证书。
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# ① 误杀放行（必须最先：规则自上而下、命中即停）
+# --------------------------------------------------------------------------
+DOMAIN-SUFFIX,wxs.qq.com,DIRECT
+DOMAIN-SUFFIX,umeng.com,DIRECT
+DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
+
+# --------------------------------------------------------------------------
+# ② 知乎广告（官方 ZhihuAds，内联）
+#     内联 13 条 / 1,281 字节（不远程引用，规避上游重组目录导致的静默失效）
+#     来源 https://github.com/blackmatrix7/ios_rule_script
+#     ⚠️ 含 URL-REGEX，必须开 HTTPS 解密才生效。规则为**内联**而非 RULE-SET 引用：上游 blackmatrix7 会重组目录，本项目已亲历一次『模块引用路径被删而静默死亡』；此套规则自 2025-06 未变更、仅 1.3 KB，内联可彻底消除 404 风险。www.zhihu.com 为规则所需，官方 ZhihuAds_MITM 只声明了 api.zhihu.com 与 zhuanlan.zhihu.com，此处已补。
+# --------------------------------------------------------------------------
+DOMAIN,appcloud2.in.zhihu.com,REJECT
+DOMAIN,mqtt.zhihu.com,REJECT
+DOMAIN,sugar.zhihu.com,REJECT
+IP-CIDR,118.89.204.198/32,REJECT-DROP,no-resolve
+IP-CIDR,2402:4e00:1200:ed00:0:9089:6dac:96b6/128,REJECT-DROP,no-resolve
+URL-REGEX,^https?:\/\/(api\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/brand\/question\/\d+/card\?,REJECT
+URL-REGEX,^https?:\/\/(api\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/commercial_api\/launch_v2\?,REJECT
+URL-REGEX,^https?:\/\/(api\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/explore\/entry\/tips,REJECT-TINYGIF
+URL-REGEX,^https?:\/\/(www\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/api\/v4/(questions|anwsers)\/\d+/related-readings,REJECT-TINYGIF
+URL-REGEX,^https?:\/\/(www\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/api\/v4\/answers\/\d+\/recommendations,REJECT
+URL-REGEX,^https?:\/\/(www\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/commercial_api\/banners_v3\/mobile_banner,REJECT-TINYGIF
+URL-REGEX,^https?:\/\/zhuanlan\.zhihu\.com\/api\/articles\/\d+\/recommendation,REJECT-TINYGIF
+USER-AGENT,AVOS*,REJECT
+
+[MITM]
+# %APPEND% = 追加到现有解密列表，不覆盖其它模块（含配置里已有的声明）。
+hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.226,103.41.167.234,103.41.167.235,103.41.167.236
+
+# --------------------------------------------------------------------------
+# 备注
+# --------------------------------------------------------------------------
+# · ⚠️ 含 URL-REGEX：未开「HTTPS 解密」+ 未信任根证书时，这些规则**静默不生效**（小火箭不报错）。
+# · 解密范围见上方 [MITM]。长期不用请直接卸载本模块，避免白付解密开销。
+# · 规则集走 jsDelivr：raw.githubusercontent.com 在本机实测间歇性不通。
+#   jsDelivr 的 @分支 引用约有 12 小时缓存延迟，规则集不需要实时，可接受。

@@ -79,6 +79,35 @@
         "sha256_16": "1c5fa40f70e08b7e"
       },
       "note": "⚠️ 作者自述『仅适用于自用需求』。除广告外还拦遥测/推送域，实测会拦 tpns.qq.com（腾讯推送）、l.qq.com（QQ 跳转）、wup.imtt.qq.com 等，可能造成推送失效与 App 异常。仅用于严格档，默认不启用。"
+    },
+    {
+      "id": "zhihu-inline",
+      "name": "知乎广告（官方 ZhihuAds，内联）",
+      "kind": "INLINE",
+      "url": "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rewrite/Shadowrocket/ZhihuAssistant/ZhihuAssistantPlus/zhihu_plus.sgmodule",
+      "homepage": "https://github.com/blackmatrix7/ios_rule_script",
+      "measured": {
+        "entries": 13,
+        "bytes": 1281,
+        "sha256_16": "84f327e990ce90ed"
+      },
+      "mitm": "api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.226,103.41.167.234,103.41.167.235,103.41.167.236",
+      "rules": [
+        "DOMAIN,appcloud2.in.zhihu.com,REJECT",
+        "DOMAIN,mqtt.zhihu.com,REJECT",
+        "DOMAIN,sugar.zhihu.com,REJECT",
+        "IP-CIDR,118.89.204.198/32,REJECT-DROP,no-resolve",
+        "IP-CIDR,2402:4e00:1200:ed00:0:9089:6dac:96b6/128,REJECT-DROP,no-resolve",
+        "URL-REGEX,^https?:\\/\\/(api\\.zhihu\\.com|(103\\.41\\.167\\.(226|234|235|236)))\\/brand\\/question\\/\\d+/card\\?,REJECT",
+        "URL-REGEX,^https?:\\/\\/(api\\.zhihu\\.com|(103\\.41\\.167\\.(226|234|235|236)))\\/commercial_api\\/launch_v2\\?,REJECT",
+        "URL-REGEX,^https?:\\/\\/(api\\.zhihu\\.com|(103\\.41\\.167\\.(226|234|235|236)))\\/explore\\/entry\\/tips,REJECT-TINYGIF",
+        "URL-REGEX,^https?:\\/\\/(www\\.zhihu\\.com|(103\\.41\\.167\\.(226|234|235|236)))\\/api\\/v4/(questions|anwsers)\\/\\d+/related-readings,REJECT-TINYGIF",
+        "URL-REGEX,^https?:\\/\\/(www\\.zhihu\\.com|(103\\.41\\.167\\.(226|234|235|236)))\\/api\\/v4\\/answers\\/\\d+\\/recommendations,REJECT",
+        "URL-REGEX,^https?:\\/\\/(www\\.zhihu\\.com|(103\\.41\\.167\\.(226|234|235|236)))\\/commercial_api\\/banners_v3\\/mobile_banner,REJECT-TINYGIF",
+        "URL-REGEX,^https?:\\/\\/zhuanlan\\.zhihu\\.com\\/api\\/articles\\/\\d+\\/recommendation,REJECT-TINYGIF",
+        "USER-AGENT,AVOS*,REJECT"
+      ],
+      "note": "⚠️ 含 URL-REGEX，必须开 HTTPS 解密才生效。规则为**内联**而非 RULE-SET 引用：上游 blackmatrix7 会重组目录，本项目已亲历一次『模块引用路径被删而静默死亡』；此套规则自 2025-06 未变更、仅 1.3 KB，内联可彻底消除 404 风险。www.zhihu.com 为规则所需，官方 ZhihuAds_MITM 只声明了 api.zhihu.com 与 zhuanlan.zhihu.com，此处已补。"
     }
   ]
 }
