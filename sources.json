@@ -1,0 +1,84 @@
+{
+  "_说明": "上游规则源登记表。scripts/build.py 按此生成 modules/；scripts/verify.py 按此校验可达性与内容漂移。measured 是 2026-09-21 的实测基线，用于发现上游静默变更。",
+  "measured_at": "2026-09-21",
+  "sources": [
+    {
+      "id": "antiad",
+      "name": "anti-AD 主列表",
+      "kind": "DOMAIN-SET",
+      "url": "https://anti-ad.net/surge2.txt",
+      "homepage": "https://github.com/privacy-protection-tools/anti-AD",
+      "measured": {
+        "entries": 100732,
+        "bytes": 2029121,
+        "sha256_16": "79f745604b082944"
+      },
+      "note": "纯域名列表（带前导点）。与 blackmatrix7 域名集重合仅 1,926 条 —— 两者互补性极强，这是本项目做双源合并的核心理由。"
+    },
+    {
+      "id": "bm-domain",
+      "name": "blackmatrix7 Advertising（域名集）",
+      "kind": "DOMAIN-SET",
+      "url": "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Advertising/Advertising_Domain.list",
+      "homepage": "https://github.com/blackmatrix7/ios_rule_script",
+      "measured": {
+        "entries": 283435,
+        "bytes": 5726867,
+        "sha256_16": "917be56d776ba930"
+      },
+      "note": "⚠️ 必须用 DOMAIN-SET 引用，写成 RULE-SET 等于没拦。"
+    },
+    {
+      "id": "bm-keyword-ip",
+      "name": "blackmatrix7 Advertising（关键词 + IP + 正则）",
+      "kind": "RULE-SET",
+      "url": "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Advertising/Advertising.list",
+      "homepage": "https://github.com/blackmatrix7/ios_rule_script",
+      "measured": {
+        "entries": 781,
+        "bytes": 26853,
+        "sha256_16": "ad55354160bc1296"
+      },
+      "note": "278 DOMAIN-KEYWORD + 489 IP-CIDR + 14 URL-REGEX。含 URL-REGEX，未开 MITM 时这部分不生效（无害）。必须用 RULE-SET 引用。"
+    },
+    {
+      "id": "bm-lite-domain",
+      "name": "blackmatrix7 AdvertisingLite（域名集）",
+      "kind": "DOMAIN-SET",
+      "url": "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/AdvertisingLite/AdvertisingLite_Domain.list",
+      "homepage": "https://github.com/blackmatrix7/ios_rule_script",
+      "measured": {
+        "entries": 37692,
+        "bytes": 595771,
+        "sha256_16": "e43ab7970cfa5bde"
+      },
+      "note": "⚠️ AdvertisingLite 是 Advertising 的**兄弟目录**，不是子目录。拼成 .../Advertising/AdvertisingLite/... 会 404。"
+    },
+    {
+      "id": "bm-lite",
+      "name": "blackmatrix7 AdvertisingLite（关键词 + IP）",
+      "kind": "RULE-SET",
+      "url": "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/AdvertisingLite/AdvertisingLite.list",
+      "homepage": "https://github.com/blackmatrix7/ios_rule_script",
+      "measured": {
+        "entries": 376,
+        "bytes": 12869,
+        "sha256_16": "43a1fa95f398684c"
+      },
+      "note": "187 DOMAIN-KEYWORD + 187 IP-CIDR + 2 URL-REGEX。"
+    },
+    {
+      "id": "lt-antiad",
+      "name": "LOWERTOP AntiAD（严格档专用）",
+      "kind": "RULE-SET",
+      "url": "https://cdn.jsdelivr.net/gh/LOWERTOP/Shadowrocket-First@main/AntiAD.list",
+      "homepage": "https://github.com/LOWERTOP/Shadowrocket-First",
+      "measured": {
+        "entries": 205,
+        "bytes": 8254,
+        "sha256_16": "1c5fa40f70e08b7e"
+      },
+      "note": "⚠️ 作者自述『仅适用于自用需求』。除广告外还拦遥测/推送域，实测会拦 tpns.qq.com（腾讯推送）、l.qq.com（QQ 跳转）、wup.imtt.qq.com 等，可能造成推送失效与 App 异常。仅用于严格档，默认不启用。"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+name: verify-sources
+
+# 每天检查一次上游规则源的可达性与内容漂移，结果写进 STATUS.md。
+# 发现异常（不可达 / 条数骤降 / 字节缩水）时开一个 issue，并在已有 issue 上追加。
+on:
+  schedule:
+    - cron: '0 1 * * *'      # 01:00 UTC = 09:00 UTC+8
+  push:
+    paths:
+      - 'sources.json'
+      - 'scripts/verify.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: 校验上游
+        id: verify
+        continue-on-error: true
+        run: python3 scripts/verify.py --quiet
+
+      - name: 写 STATUS.md
+        run: |
+          {
+            echo "# 上游校验状态"
+            echo
+            echo "最近一次运行：$(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo
+            echo '```'
+            python3 scripts/verify.py
+            echo '```'
+            echo
+            echo "> 本文件由 verify-sources workflow 自动生成，不要手动编辑。"
+          } > STATUS.md
+
+      - name: 提交 STATUS.md
+        run: |
+          if [ -z "$(git status --porcelain STATUS.md)" ]; then
+            echo "STATUS.md 无变化"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add STATUS.md
+          git commit -m "chore: 更新上游校验状态"
+          git push
+
+      - name: 异常时开 issue
+        if: steps.verify.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="上游规则源校验异常"
+          BODY="$(printf '自动校验发现异常，请查看 Actions 日志。\n\n```\n%s\n```\n' "$(python3 scripts/verify.py 2>&1 | tail -20)")"
+          EXISTING="$(gh issue list --state open --search "$TITLE" --json number --jq '.[0].number' || true)"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY"
+          fi

@@ -1,0 +1,51 @@
+#!name= 反广告 · 整合版
+#!desc= blackmatrix7 域名集 + 关键词/IP + anti-AD 双源合并 · 纯 REJECT · 不需要 MITM
+#!author= ace1892 · 仓库 https://github.com/ace1892/shadowrocket-antidad
+#!icon= https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Advertising.png
+
+[Rule]
+# ==========================================================================
+# 本文件由 scripts/build.py 生成于 2026-09-21 13:11 (UTC+8)
+# 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
+# 源基线日期：2026-09-21
+# 生效白名单：3 条（来自 whitelist.txt）
+#
+# 生效前提：小火箭「全局路由」必须设为「配置」，含 [Rule] 的模块才工作。
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# ① 误杀放行（必须最先：规则自上而下、命中即停）
+# --------------------------------------------------------------------------
+DOMAIN-SUFFIX,wxs.qq.com,DIRECT
+DOMAIN-SUFFIX,umeng.com,DIRECT
+DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
+
+# --------------------------------------------------------------------------
+# ② anti-AD 主列表
+#     引用类型必须 DOMAIN-SET · 上游基线 100,732 条 / 2,029,121 字节
+#     来源 https://github.com/privacy-protection-tools/anti-AD
+# --------------------------------------------------------------------------
+DOMAIN-SET,https://anti-ad.net/surge2.txt,REJECT
+
+# --------------------------------------------------------------------------
+# ③ blackmatrix7 Advertising（域名集）
+#     引用类型必须 DOMAIN-SET · 上游基线 283,435 条 / 5,726,867 字节
+#     来源 https://github.com/blackmatrix7/ios_rule_script
+#     ⚠️ 必须用 DOMAIN-SET 引用，写成 RULE-SET 等于没拦。
+# --------------------------------------------------------------------------
+DOMAIN-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Advertising/Advertising_Domain.list,REJECT
+
+# --------------------------------------------------------------------------
+# ④ blackmatrix7 Advertising（关键词 + IP + 正则）
+#     引用类型必须 RULE-SET · 上游基线 781 条 / 26,853 字节
+#     来源 https://github.com/blackmatrix7/ios_rule_script
+# --------------------------------------------------------------------------
+RULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/Advertising/Advertising.list,REJECT
+
+# --------------------------------------------------------------------------
+# 备注
+# --------------------------------------------------------------------------
+# · 纯 REJECT，不含 URL 重写 / 脚本 → 不需要开 MITM、不用装证书。
+# · 规则集走 jsDelivr：raw.githubusercontent.com 在本机实测间歇性不通。
+#   jsDelivr 的 @分支 引用约有 12 小时缓存延迟，规则集不需要实时，可接受。
+# · URL-REGEX 类规则未开 MITM 时不生效（无害）。

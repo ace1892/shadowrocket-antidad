@@ -1,0 +1,44 @@
+#!name= 反广告 · 轻量版
+#!desc= 仅 blackmatrix7 AdvertisingLite 系列 · 约 0.6 MB · 误杀更少
+#!author= ace1892 · 仓库 https://github.com/ace1892/shadowrocket-antidad
+#!icon= https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Advertising.png
+
+[Rule]
+# ==========================================================================
+# 本文件由 scripts/build.py 生成于 2026-09-21 13:11 (UTC+8)
+# 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
+# 源基线日期：2026-09-21
+# 生效白名单：3 条（来自 whitelist.txt）
+#
+# 生效前提：小火箭「全局路由」必须设为「配置」，含 [Rule] 的模块才工作。
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# ① 误杀放行（必须最先：规则自上而下、命中即停）
+# --------------------------------------------------------------------------
+DOMAIN-SUFFIX,wxs.qq.com,DIRECT
+DOMAIN-SUFFIX,umeng.com,DIRECT
+DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
+
+# --------------------------------------------------------------------------
+# ② blackmatrix7 AdvertisingLite（域名集）
+#     引用类型必须 DOMAIN-SET · 上游基线 37,692 条 / 595,771 字节
+#     来源 https://github.com/blackmatrix7/ios_rule_script
+#     ⚠️ AdvertisingLite 是 Advertising 的**兄弟目录**，不是子目录。拼成 .../Advertising/AdvertisingLite/... 会 404。
+# --------------------------------------------------------------------------
+DOMAIN-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/AdvertisingLite/AdvertisingLite_Domain.list,REJECT
+
+# --------------------------------------------------------------------------
+# ③ blackmatrix7 AdvertisingLite（关键词 + IP）
+#     引用类型必须 RULE-SET · 上游基线 376 条 / 12,869 字节
+#     来源 https://github.com/blackmatrix7/ios_rule_script
+# --------------------------------------------------------------------------
+RULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/AdvertisingLite/AdvertisingLite.list,REJECT
+
+# --------------------------------------------------------------------------
+# 备注
+# --------------------------------------------------------------------------
+# · 纯 REJECT，不含 URL 重写 / 脚本 → 不需要开 MITM、不用装证书。
+# · 规则集走 jsDelivr：raw.githubusercontent.com 在本机实测间歇性不通。
+#   jsDelivr 的 @分支 引用约有 12 小时缓存延迟，规则集不需要实时，可接受。
+# · URL-REGEX 类规则未开 MITM 时不生效（无害）。
