@@ -36,7 +36,7 @@
 | **轻量版** | `antidad-lite.module` | blackmatrix7 AdvertisingLite ×2 | 约 3.8 万 | 省流量、少误杀；移动数据为主 |
 | **严格版** | `antidad-strict.module` | 整合版 + LOWERTOP AntiAD | 整合版 + 205 条 | ⚠️ 额外拦遥测/推送域，**会误杀**，先读下面第五节 |
 | **知乎补丁**（可选） | `antidad-zhihu.module` | 官方 ZhihuAds 13 条，**内联** | 13 条 | ⚠️ **必须开 HTTPS 解密**；只解决知乎一家，见第五节之一 |
-| **开屏广告**（可选） | `antidad-splash.module` | NoAd 中 8 个常用 App 的开屏接口，**内联** | 9 条 / 10 个解密目标 | ⚠️ **必须开 HTTPS 解密**；见第五节之二 |
+| **开屏广告**（可选） | `antidad-splash.module` | NoAd 中 7 个常用 App 的开屏接口，**内联** | 9 条 / 10 个解密目标 | ⚠️ **必须开 HTTPS 解密**；见第五节之二 |
 
 **为什么整合版要做双源**：anti-AD 与 blackmatrix7 域名集的交集只有 **1,926 条**，两边加起来去重后是 **382,242 条**。也就是说这两份名单几乎不重合 —— 只装一份会漏掉一大半。
 
@@ -206,12 +206,12 @@ hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.22
 | 项 | NoAd | 本模块 |
 |---|---|---|
 | 解密目标 | 153 | **10** |
-| 开屏广告 | 拦 | 拦（8 个常用 App）|
+| 开屏广告 | 拦 | 拦（7 个常用 App）|
 | 商品列表里的图片广告位 | 拦 | 不拦（这是省电的代价）|
 
 ### 覆盖范围
 
-9 条规则 / 8 个 App，全部指向**开屏广告接口**（JSON 接口，流量极小）：
+9 条规则 / 7 个 App，全部指向**开屏广告接口**（JSON 接口，流量极小）：
 
 | App | 目标 |
 |---|---|
@@ -222,6 +222,10 @@ hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.22
 | 美团 | `wmapi.meituan.com/api/v\d/startpicture` |
 | 拼多多 | `api.(pinduoduo\|yangkeduo).com/api/cappuccino/splash` |
 | 小红书 | `www.xiaohongshu.com/api/sns/v\d/system_service/splash_config` |
+
+> **淘宝不在覆盖范围内**：NoAd 原档里 `acs.m.taobao.com` 那 3 条分别是**闲鱼**（`mtop.taobao.idle.*`）、
+> **飞猪**（`mtop.trip.*`）、**淘票票**（`mtop.film.*`），都不是淘宝 App 本身 —— 淘宝没有可用的开屏接口规则。
+> 另外 `acs.m.taobao.com` 一旦声明进 `[MITM]` 就是**整域解密**，无法只针对闲鱼那一条路径，这是本模块已知的取舍点。
 
 ### 规则为什么内联
 
