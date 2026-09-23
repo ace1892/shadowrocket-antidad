@@ -7,19 +7,27 @@
   whitelist.txt  —— 误杀放行名单（人可读，改动只需动它）
 
 输出：
-  modules/antidad-full.module
-  modules/antidad-lite.module
-  modules/antidad-strict.module
-  modules/antidad-zhihu.module     （补丁档：含 [MITM]，必须开 HTTPS 解密）
+  modules/antidad-full.module      域名级 · 整合版
+  modules/antidad-lite.module      域名级 · 轻量版
+  modules/antidad-strict.module    域名级 · 严格版
+  modules/antidad-rewrite.module   ★ 主力：URL 级去广告整合（含 [URL Rewrite] 与 [Script]）
+  modules/antidad-zhihu.module     URL 级 · 只要知乎（重写整合的子集）
+  modules/antidad-splash.module    URL 级 · 只要开屏（重写整合的子集）
 
 设计要点：
   1. 模块的 [Rule] 段支持 RULE-SET / DOMAIN-SET 远程引用（社区实证，官方手册无明文）。
      所以本仓库**不需要**把 5.7 MB 域名集存进来 —— 模块直接引用上游，体积只有几 KB。
   2. 白名单必须排在最前（规则自上而下、命中即停）。
   3. 引用类型不能写错：域名集必须 DOMAIN-SET，关键词/IP 集必须 RULE-SET。
-  4. kind=INLINE 的源把规则**原文内联**进模块，不远程引用 —— 用于「上游会重组目录」
+  4. **段的划分由 sources.json 的 `section` 字段决定**，不做分段路由 = 规则落错段 =
+     非法语法 = 静默失效（小火箭不报错）。三种段的语法各不相同：
+       · 缺省 "Rule"      —— 普通规则 / 规则集引用 / `URL-REGEX,` 行
+       · "URL Rewrite"    —— `^正则 target` 形态
+       · "Script"         —— `名字=type=...,pattern=...,script-path=...`
+  5. kind=INLINE 的源把规则**原文内联**进模块，不远程引用 —— 用于「上游会重组目录」
      的场景（本项目亲历过一次模块引用 404 静默死亡）。INLINE 源可带 mitm 字段，
      渲染时在文末生成 [MITM] hostname = %APPEND% 段（追加，不覆盖别人的声明）。
+     多个源的 mitm 会去重合并，`-` 排除项统一排到末尾（先声明、后排除）。
 
 用法：
   python3 scripts/build.py            # 写入 modules/
@@ -64,9 +72,25 @@ PROFILES = [
         "sources": ["antiad", "bm-domain", "bm-keyword-ip", "lt-antiad"],
     },
     {
+        # ★ 主力档：把「所有 URL 级去广告」整合进一个模块。
+        # 合并的意义不是省事，而是**把散落的 %APPEND% 解密声明收拢成一份可审计的名单**：
+        # 装三个模块时，解密面是三者之和且看不见；合成一个模块后，
+        # 24 个目标一眼可数，check_mitm.py 也能一次校验到位。
+        #
+        # 内容 = App 开屏（自建）+ 知乎（blackmatrix7 内联）+ B站（biliad 去广告部分）+ 微信公众号。
+        # B站已剔除 4K 画质解锁 / 皮肤 / 标签页 / 我的页面 / CC字幕 / 屏蔽IP / SIM地区 等非去广告项。
+        "file": "antidad-rewrite.module",
+        "name": "反广告 · 重写整合",
+        "desc": "App开屏 + 知乎 + B站 + 微信公众号 去广告 · {mitm} 个解密目标 · ⚠️ 必须开 HTTPS 解密",
+        "sources": ["app-splash", "bili-rewrite", "zhihu-inline", "bili-script", "wechat-script"],
+        # Qure 图标库里 AdWhite 与前三档的 Advertising、补丁档的 AdBlack 区分开。
+        "icon": "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdWhite.png",
+    },
+    {
         # 知乎广告走的是「正经域名下的路径」，域名级规则原理上拦不到（见 README）。
         # 这是一次**补丁**，不是第四档 —— 它必须开 MITM 才有意义，
         # 所以单独成文件，不愿意开解密的人可以不装。
+        # （已被「反广告 · 重写整合」包含；此档保留给「只想去知乎广告、解密面要最小」的场景。）
         "file": "antidad-zhihu.module",
         "name": "反广告 · 知乎补丁",
         "desc": "知乎广告专用 · 官方 ZhihuAds 规则内联 · ⚠️ 必须开 HTTPS 解密才生效",
@@ -79,9 +103,10 @@ PROFILES = [
         # NoAd 声明 153 个解密目标，其中含多个高流量图片/视频 CDN 通配符，
         # 导致刷电商时商品图流量全部走 TLS 解密 —— 这是发热主因。
         # 本档只保留常用 App 的**开屏广告接口**（流量极小），剔除全部 CDN 域。
+        # （已被「反广告 · 重写整合」包含；此档保留给「只要开屏、不想碰 B站脚本」的场景。）
         "file": "antidad-splash.module",
         "name": "反广告 · 开屏广告",
-        "desc": "常用 App 开屏广告 · 仅 10 个解密目标 · ⚠️ 必须开 HTTPS 解密才生效",
+        "desc": "常用 App 开屏广告 · 仅 {mitm} 个解密目标 · ⚠️ 必须开 HTTPS 解密才生效",
         "sources": ["app-splash"],
         "icon": "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdBlack.png",
     },
@@ -125,6 +150,40 @@ def parse_whitelist(text: str):
     return rules, commented
 
 
+def wrap_note(note: str, width: int = 86):
+    """把长注释折成多行，宽度按「CJK 算 2」计。
+
+    按 token 折行而不是按字符 —— 一个 ASCII 词（域名、路径、代码）是不可断的原子，
+    否则会生成 `blac` / `kmatrix7` 这种断词，反而难读。
+    允许在空格、以及 , . / ; : ) ] 之后断开，让折行点落在自然边界上。
+    """
+    def w(s):
+        return sum(2 if ord(c) > 0x2E80 else 1 for c in s)
+
+    BREAK_AFTER = " ,./;:)]、，。；：）】"
+
+    lines, cur = [], ""
+    for ch in note:
+        if ch == "\n":
+            lines.append(cur)
+            cur = ""
+            continue
+        if w(cur) + w(ch) > width:
+            # 回退到最近一个可断点；退不动就硬断
+            cut = max((cur.rfind(c) for c in BREAK_AFTER), default=-1)
+            if cut >= max(0, len(cur) // 3):
+                lines.append(cur[:cut + 1])
+                cur = cur[cut + 1:] + ch
+            else:
+                lines.append(cur)
+                cur = ch
+        else:
+            cur += ch
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 def render_source_block(src, num):
     """渲染单个规则源的注释头 + 规则内容（不含段名）。"""
     m = src["measured"]
@@ -142,8 +201,7 @@ def render_source_block(src, num):
             f"#     引用类型必须 {src['kind']}"
             f" · 上游基线 {m['entries']:,} 条 / {m['bytes']:,} 字节")
     block.append(f"#     来源 {src['homepage']}")
-    if src["note"].startswith("⚠️"):
-        block.append(f"#     {src['note']}")
+    block += [f"#     {ln}" for ln in wrap_note(src["note"])]
     block.append("# " + "-" * 74)
     if src["kind"] == "INLINE":
         block += list(src["rules"])
@@ -152,20 +210,44 @@ def render_source_block(src, num):
     return block
 
 
+def collect_mitm(used):
+    """把各源的 mitm 字段合并成一份全局解密名单。
+
+    同一个域名只出现一次；`-` 排除项一律排到末尾 ——
+    小火箭的 hostname 是「先声明、后排除」，顺序反了排除可能不生效。
+    """
+    pos, neg = [], []
+    for src in used:
+        for chunk in (src.get("mitm") or "").split(","):
+            h = chunk.strip()
+            if not h or h == "%APPEND%":
+                continue
+            bucket = neg if h.startswith("-") else pos
+            if h.lower() not in {x.lower() for x in bucket}:
+                bucket.append(h)
+    return pos + neg
+
+
 def render(profile, sources, whitelist_rules, measured_at):
     now = datetime.now(CST).strftime("%Y-%m-%d %H:%M (UTC+8)")
     used = [sources[s] for s in profile["sources"]]
-    # 按目标段分组：`^https?://...` 形态的规则属于 [URL Rewrite] 段，
-    # 放进 [Rule] 段是非法语法。section 缺省为 "Rule"（既有档位的产物因此零变化）。
+    # 按目标段分组。三种段各有自己的语法，放错段 = 非法语法 = 静默失效：
+    #   section 缺省 "Rule"        → 普通规则 / 规则集引用 / URL-REGEX
+    #   section == "URL Rewrite"   → `^正则 target` 形态（如 `^https?://... - reject`）
+    #   section == "Script"        → `名字=type=...,pattern=...,script-path=...`
     rule_srcs = [s for s in used if s.get("section", "Rule") == "Rule"]
     rewrite_srcs = [s for s in used if s.get("section") == "URL Rewrite"]
-    mitm_hosts = [s["mitm"] for s in used if s.get("mitm")]
-    needs_mitm = bool(mitm_hosts) or bool(rewrite_srcs)
+    script_srcs = [s for s in used if s.get("section") == "Script"]
+    mitm_hosts = collect_mitm(used)
+    needs_mitm = bool(mitm_hosts) or bool(rewrite_srcs) or bool(script_srcs)
     icon = profile.get("icon", ICON)
+    # `{mitm}` 占位符 → 真实解密目标数。手写的数字迟早会和 [MITM] 对不上，
+    # 而这个数字正是用户判断「这模块费不费电」的唯一依据，必须由脚本算。
+    desc = profile["desc"].replace("{mitm}", str(sum(1 for h in mitm_hosts if not h.startswith("-"))))
 
     out = [
         f"#!name= {profile['name']}",
-        f"#!desc= {profile['desc']}",
+        f"#!desc= {desc}",
         f"#!author= ace1892 · 仓库 https://github.com/{REPO}",
         f"#!icon= {icon}",
         "",
@@ -203,11 +285,18 @@ def render(profile, sources, whitelist_rules, measured_at):
             out += render_source_block(src, n)
             n += 1
 
+    if script_srcs:
+        out += ["", "[Script]"]
+        for src in script_srcs:
+            out += render_source_block(src, n)
+            n += 1
+
     if needs_mitm:
         out += [
             "",
             "[MITM]",
             "# %APPEND% = 追加到现有解密列表，不覆盖其它模块（含配置里已有的声明）。",
+            "# `-` 前缀 = 排除；已统一排在末尾（先声明、后排除）。",
             f"hostname = %APPEND% {','.join(mitm_hosts)}",
         ]
 

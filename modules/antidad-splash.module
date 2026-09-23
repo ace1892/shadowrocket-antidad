@@ -5,7 +5,7 @@
 
 [Rule]
 # ==========================================================================
-# 本文件由 scripts/build.py 生成于 2026-09-23 11:32 (UTC+8)
+# 本文件由 scripts/build.py 生成于 2026-09-23 12:29 (UTC+8)
 # 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
 # 源基线日期：2026-09-21
 # 生效白名单：3 条（来自 whitelist.txt）
@@ -27,7 +27,13 @@ DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
 # ② App 开屏广告（常用 App，内联）
 #     内联 9 条 / 803 字节（不远程引用，规避上游重组目录导致的静默失效）
 #     来源 https://github.com/deezertidal/shadowrocket-rules
-#     ⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。规则取自 NoAd 中 **7 个常用 App** 的开屏接口（闲鱼 / 高德地图 / 百度地图 / 京东 / 美团 / 拼多多 / 小红书），并**剔除 NoAd 全部图片 CDN 域** —— NoAd 原档声明的 img*.360buyimg.com、p*.meituan.net、*.tv.sohu.com 等会让商品图与视频流量全部解密，是「只开一个 NoAd 就明显发热」的主因。剔除后解密目标由 153 降到 10。注：**淘宝本身在 NoAd 里没有开屏规则**（acs.m.taobao.com 那 3 条分别是闲鱼、飞猪、淘票票，不是淘宝 App），故未覆盖；同域名的 acs.m.taobao.com 一旦声明 MITM 即整域解密，无法只针对闲鱼，需权衡。
+#     ⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。规则取自 NoAd 中 
+#     **7 个常用 App** 的开屏接口（闲鱼 / 高德地图 / 百度地图 / 京东 / 美团 / 拼多多 / 
+#     小红书），并**剔除 NoAd 全部图片 CDN 域** —— NoAd 原档声明的 img*.360buyimg.com、p*.
+#     meituan.net、*.tv.sohu.com 等会让商品图与视频流量全部解密，是「只开一个 NoAd 
+#     就明显发热」的主因。剔除后解密目标由 153 降到 10。注：**淘宝本身在 NoAd 
+#     里没有开屏规则**（acs.m.taobao.com 那 3 条分别是闲鱼、飞猪、淘票票，不是淘宝 App），
+#     故未覆盖；同域名的 acs.m.taobao.com 一旦声明 MITM 即整域解密，无法只针对闲鱼，需权衡。
 # --------------------------------------------------------------------------
 ^https?:\/\/acs\.m\.taobao\.com\/gw\/mtop\.taobao\.idle\.home\.welcome\/ - reject
 ^https?:\/\/m\d\.amap\.com\/ws\/valueadded\/alimama\/splash_screen\/ - reject
@@ -41,6 +47,7 @@ DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
 
 [MITM]
 # %APPEND% = 追加到现有解密列表，不覆盖其它模块（含配置里已有的声明）。
+# `-` 前缀 = 排除；已统一排在末尾（先声明、后排除）。
 hostname = %APPEND% acs.m.taobao.com,m*.amap.com,newclient.map.baidu.com,api.m.jd.com,bdsp-x.jd.com,dsp-x.jd.com,wmapi.meituan.com,api.pinduoduo.com,api.yangkeduo.com,www.xiaohongshu.com
 
 # --------------------------------------------------------------------------

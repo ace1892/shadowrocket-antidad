@@ -7,6 +7,7 @@
 只检查真正的 URL 级规则：
   · [URL Rewrite] 段的 `^https?://...` 行
   · [Rule] 段的 `URL-REGEX,...` 行
+  · [Script] 段每条 `pattern=` 里的正则
 **不检查** `RULE-SET,<url>` / `DOMAIN-SET,<url>` —— 那是规则集地址，不是解密目标。
 
 用法：python3 scripts/check_mitm.py [modules/*.module]
@@ -85,6 +86,23 @@ def host_of(body: str):
     return host or None
 
 
+def script_patterns(text: str):
+    """[Script] 段每条脚本的 pattern= 值。
+
+    行内是逗号分隔的 key=value 列表，但 pattern 本身可能含 `=`（如 `(c=ad|...)`），
+    所以不能按第一个 `,` 或 `=` 切 —— 用「pattern= 开始、到下一个已知键名或行尾」来取。
+    """
+    out = []
+    for line in section(text, 'Script').splitlines():
+        s = line.strip()
+        if not s or s.startswith('#'):
+            continue
+        m = re.search(r'(?:^|,)pattern=(.*?)(?:,(?:requires-body|script-path|type|max-size|debug)=|$)', s)
+        if m:
+            out.append(m.group(1))
+    return out
+
+
 NOISE = ('RULE-SET,', 'DOMAIN-SET,', 'GEOIP,', 'IP-CIDR,', 'IP-CIDR6,')
 
 
@@ -106,6 +124,11 @@ def rule_targets(text: str):
             h = host_of(unesc(s.split(',', 1)[1]))
             if h:
                 targets.update(c.lower() for c in expand(h))
+    # [Script]：pattern= 里的正则
+    for pat in script_patterns(text):
+        h = host_of(unesc(pat))
+        if h:
+            targets.update(c.lower() for c in expand(h))
     return targets
 
 

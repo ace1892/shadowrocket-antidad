@@ -1,0 +1,157 @@
+#!name= 反广告 · 重写整合
+#!desc= App开屏 + 知乎 + B站 + 微信公众号 去广告 · 26 个解密目标 · ⚠️ 必须开 HTTPS 解密
+#!author= ace1892 · 仓库 https://github.com/ace1892/shadowrocket-antidad
+#!icon= https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdWhite.png
+
+[Rule]
+# ==========================================================================
+# 本文件由 scripts/build.py 生成于 2026-09-23 12:29 (UTC+8)
+# 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
+# 源基线日期：2026-09-21
+# 生效白名单：3 条（来自 whitelist.txt）
+#
+# 生效前提：小火箭「全局路由」必须设为「配置」，含 [Rule] 的模块才工作。
+# ⚠️ 本模块需要开「HTTPS 解密」并信任根证书（含 URL 重写 / URL-REGEX）。
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# ① 误杀放行（必须最先：规则自上而下、命中即停）
+# --------------------------------------------------------------------------
+DOMAIN-SUFFIX,wxs.qq.com,DIRECT
+DOMAIN-SUFFIX,umeng.com,DIRECT
+DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
+
+# --------------------------------------------------------------------------
+# ② 知乎广告（官方 ZhihuAds，内联）
+#     内联 13 条 / 1,281 字节（不远程引用，规避上游重组目录导致的静默失效）
+#     来源 https://github.com/blackmatrix7/ios_rule_script
+#     ⚠️ 含 URL-REGEX，必须开 HTTPS 解密才生效。规则为**内联**而非 RULE-SET 引用：上游 
+#     blackmatrix7 会重组目录，本项目已亲历一次『模块引用路径被删而静默死亡』；此套规则自 
+#     2025-06 未变更、仅 1.3 KB，内联可彻底消除 404 风险。www.zhihu.com 为规则所需，官方 
+#     ZhihuAds_MITM 只声明了 api.zhihu.com 与 zhuanlan.zhihu.com，此处已补。
+# --------------------------------------------------------------------------
+DOMAIN,appcloud2.in.zhihu.com,REJECT
+DOMAIN,mqtt.zhihu.com,REJECT
+DOMAIN,sugar.zhihu.com,REJECT
+IP-CIDR,118.89.204.198/32,REJECT-DROP,no-resolve
+IP-CIDR,2402:4e00:1200:ed00:0:9089:6dac:96b6/128,REJECT-DROP,no-resolve
+URL-REGEX,^https?:\/\/(api\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/brand\/question\/\d+/card\?,REJECT
+URL-REGEX,^https?:\/\/(api\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/commercial_api\/launch_v2\?,REJECT
+URL-REGEX,^https?:\/\/(api\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/explore\/entry\/tips,REJECT-TINYGIF
+URL-REGEX,^https?:\/\/(www\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/api\/v4/(questions|anwsers)\/\d+/related-readings,REJECT-TINYGIF
+URL-REGEX,^https?:\/\/(www\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/api\/v4\/answers\/\d+\/recommendations,REJECT
+URL-REGEX,^https?:\/\/(www\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/commercial_api\/banners_v3\/mobile_banner,REJECT-TINYGIF
+URL-REGEX,^https?:\/\/zhuanlan\.zhihu\.com\/api\/articles\/\d+\/recommendation,REJECT-TINYGIF
+USER-AGENT,AVOS*,REJECT
+
+[URL Rewrite]
+
+# --------------------------------------------------------------------------
+# ③ App 开屏广告（常用 App，内联）
+#     内联 9 条 / 803 字节（不远程引用，规避上游重组目录导致的静默失效）
+#     来源 https://github.com/deezertidal/shadowrocket-rules
+#     ⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。规则取自 NoAd 中 
+#     **7 个常用 App** 的开屏接口（闲鱼 / 高德地图 / 百度地图 / 京东 / 美团 / 拼多多 / 
+#     小红书），并**剔除 NoAd 全部图片 CDN 域** —— NoAd 原档声明的 img*.360buyimg.com、p*.
+#     meituan.net、*.tv.sohu.com 等会让商品图与视频流量全部解密，是「只开一个 NoAd 
+#     就明显发热」的主因。剔除后解密目标由 153 降到 10。注：**淘宝本身在 NoAd 
+#     里没有开屏规则**（acs.m.taobao.com 那 3 条分别是闲鱼、飞猪、淘票票，不是淘宝 App），
+#     故未覆盖；同域名的 acs.m.taobao.com 一旦声明 MITM 即整域解密，无法只针对闲鱼，需权衡。
+# --------------------------------------------------------------------------
+^https?:\/\/acs\.m\.taobao\.com\/gw\/mtop\.taobao\.idle\.home\.welcome\/ - reject
+^https?:\/\/m\d\.amap\.com\/ws\/valueadded\/alimama\/splash_screen\/ - reject
+^https?:\/\/newclient\.map\.baidu\.com\/client\/phpui2\/\?qt=ads - reject
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=start - reject
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryMaterialAdverts - reject
+^https?:\/\/(bdsp-x|dsp-x)\.jd\.com\/adx\/ - reject
+^https?:\/\/wmapi\.meituan\.com\/api\/v\d\/startpicture - reject
+^https?:\/\/api\.(pinduoduo|yangkeduo)\.com\/api\/cappuccino\/splash - reject
+^https?:\/\/www\.xiaohongshu\.com\/api\/sns\/v\d\/system_service\/splash_config - reject
+
+# --------------------------------------------------------------------------
+# ④ 哔哩哔哩 去广告 · URL 重写（内联）
+#     内联 10 条 / 1,117 字节（不远程引用，规避上游重组目录导致的静默失效）
+#     来源 https://github.com/deezertidal/shadowrocket-rules
+#     ⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。取自上游 biliad.
+#     module，**只保留去广告部分**：已剔除「屏蔽IP请求」「解除SIM卡地区限制(302)
+#     」等非去广告项。`-*cdn*.biliapi.net,-*tracker*.biliapi.net` 是上游作者的排除项，
+#     用于避免解密视频 CDN 与埋点，予以保留。解密名单比上游多了 api.biliapi.com / api.
+#     bilibili.net —— 规则写的是 `api.(bilibili|biliapi).(com|net)`，展开 4 
+#     个组合而**上游只声明了 2 个**（另 2 条分支静默失效）；声明天生不会被访问的域成本为零，
+#     故补齐。
+# --------------------------------------------------------------------------
+# 应用开屏广告（源自 bm7）
+^https:\/\/app\.bilibili\.com\/x\/v2\/splash\/show - reject-dict
+# 首页右上角活动入口（运营推广）
+^https?:\/\/app\.bilibili\.com\/x\/resource\/top\/activity - reject-dict
+# 搜索默认词（推广词）
+^https?:\/\/app\.bilibili\.com\/bilibili\.app\.interface\.v1\.Search\/Default - reject
+# 搜索默认词（另一接口）
+^https:\/\/app\.bilibili\.com\/x\/v2\/search\/defaultwords - reject-dict
+# 会员购广告物料上报
+^https?:\/\/api\.bilibili\.com\/x\/vip\/ads\/material\/report - reject-dict
+# 播放页小卡片广告
+^https:\/\/api\.bilibili\.com\/pgc\/season\/player\/cards - reject-dict
+# 番剧 / 影视相关推荐（推广）
+^https?:\/\/api\.bilibili\.com\/pgc\/season\/app\/related\/recommend\? - reject-dict
+# 搜索页「大家都在搜」
+^https?:\/\/api\.vc\.bilibili\.com\/search_svr\/v\d\/Search\/recommend_words - reject
+# 动态页话题（推广）
+^https?:\/\/api\.vc\.bilibili\.com\/topic_svr\/v1\/topic_svr - reject-dict
+# 漫画页广告
+^https?:\/\/manga\.bilibili\.com\/twirp\/comic\.v\d\.Comic\/(Flash|ListFlash) - reject-dict
+
+[Script]
+
+# --------------------------------------------------------------------------
+# ⑤ 哔哩哔哩 去广告 · 脚本（内联）
+#     内联 9 条 / 2,352 字节（不远程引用，规避上游重组目录导致的静默失效）
+#     来源 https://github.com/deezertidal/shadowrocket-rules
+#     ⚠️ 全部为 requires-body=1（需读完整响应体）—— 这是全配置最耗电的一项：
+#     「推荐流去广告」每次下拉刷新都要等整个 feed JSON 下载完才能跑 JS。
+#     同样**只保留去广告**：已剔除 4K 画质解锁 / 去除统一设置皮肤 / 标签页处理 / 
+#     我的页面处理 / 繁体 CC 字幕转换，共 5 条非去广告脚本；「屏蔽IP请求」属隐私不属去广告，
+#     也一并剔除。script-path 指向上游 JS 文件（无法内联，体积 27~107 KB），属「远程引用」，
+#     上游删文件会静默失效 —— verify.py 会盯这三个地址。
+# --------------------------------------------------------------------------
+# 观影页面去广告
+antidad_bili_1=type=http-response,pattern=^https?:\/\/api\.(bilibili|biliapi)\.(com|net)\/pgc\/page\/cinema\/tab\?,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+# 应用开屏广告预加载
+antidad_bili_2=type=http-response,pattern=^https:\/\/app\.bilibili\.com\/x\/v2\/splash\/list,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+# 搜索页热搜 / 发现（推广）
+antidad_bili_3=type=http-response,pattern=^https://app.bilibili.com/x/v2/search/square,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+# 推荐流去广告
+antidad_bili_4=type=http-response,pattern=^https?:\/\/app\.bilibili\.com\/x\/v2\/feed\/index,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+# 追番页去广告
+antidad_bili_5=type=http-response,pattern=^https?:\/\/api\.(bilibili|biliapi)\.(com|net)\/pgc\/page\/bangumi,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+# 直播去广告
+antidad_bili_6=type=http-response,pattern=^https?:\/\/api\.live\.bilibili\.com\/xlive\/app-room\/v1\/index\/getInfoByRoom,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+# 动态去广告
+antidad_bili_7=type=http-response,pattern=^https?:\/\/api\.vc\.bilibili\.com\/dynamic_svr\/v1\/dynamic_svr\/dynamic_(history|new)\?,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+# 视频页 / 动态页 Proto 去广告（app2smile）
+antidad_bili_8=type=http-response,pattern=^https:\/\/app\.bilibili\.com\/bilibili\.app\.(view\.v1\.View\/View|dynamic\.v2\.Dynamic\/DynAll)$,requires-body=1,script-path=https://raw.githubusercontent.com/app2smile/rules/master/js/bilibili-proto.js
+# 动态广告（yjqiang）
+antidad_bili_9=type=http-response,pattern=^https://app\.bilibili\.com/bilibili\.app\.dynamic\.v2\.Dynamic/DynAll$,requires-body=1,script-path=https://raw.githubusercontent.com/yjqiang/surge_scripts/main/scripts/bilibili/bilibili_dynamic.js
+
+# --------------------------------------------------------------------------
+# ⑥ 微信公众号去广告 · 脚本（内联）
+#     内联 1 条 / 232 字节（不远程引用，规避上游重组目录导致的静默失效）
+#     来源 https://github.com/deezertidal/shadowrocket-rules
+#     ⚠️ 单条脚本，只处理 mp/getappmsgad（文章底部广告），流量极小。脚本作者 Choler & 
+#     NobyDa。
+# --------------------------------------------------------------------------
+# 公众号文章底部广告
+antidad_wechat_1=type=http-response,pattern=^https?:\/\/mp\.weixin\.qq\.com\/mp\/getappmsgad,requires-body=1,script-path=https://raw.githubusercontent.com/NobyDa/Script/master/QuantumultX/File/Wechat.js
+
+[MITM]
+# %APPEND% = 追加到现有解密列表，不覆盖其它模块（含配置里已有的声明）。
+# `-` 前缀 = 排除；已统一排在末尾（先声明、后排除）。
+hostname = %APPEND% acs.m.taobao.com,m*.amap.com,newclient.map.baidu.com,api.m.jd.com,bdsp-x.jd.com,dsp-x.jd.com,wmapi.meituan.com,api.pinduoduo.com,api.yangkeduo.com,www.xiaohongshu.com,app.bilibili.com,api.bilibili.com,api.biliapi.net,api.biliapi.com,api.bilibili.net,api.vc.bilibili.com,api.live.bilibili.com,manga.bilibili.com,api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.226,103.41.167.234,103.41.167.235,103.41.167.236,mp.weixin.qq.com,-*cdn*.biliapi.net,-*tracker*.biliapi.net
+
+# --------------------------------------------------------------------------
+# 备注
+# --------------------------------------------------------------------------
+# · ⚠️ 未开「HTTPS 解密」+ 未信任根证书时，[URL Rewrite] 与 URL-REGEX 规则**静默不生效**（小火箭不报错）。
+# · 解密范围见上方 [MITM]。长期不用请直接卸载本模块，避免白付解密开销。
+# · 规则集走 jsDelivr：raw.githubusercontent.com 在本机实测间歇性不通。
+#   jsDelivr 的 @分支 引用约有 12 小时缓存延迟，规则集不需要实时，可接受。

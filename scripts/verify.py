@@ -60,6 +60,33 @@ def count_entries(kind: str, raw: bytes) -> int:
     return n
 
 
+def n_inline(rules) -> int:
+    """内联源的条数 = 非注释行。注释行用来给生成出来的模块写说明，不算规则。"""
+    return sum(1 for r in rules if r.strip() and not r.strip().startswith("#"))
+
+
+def check_script_urls(urls):
+    """逐个探测 script-path 目标。抖动重试 2 次，全失败才判死。
+
+    远端 JS 是「静默死亡」的另一个入口 —— 规则在、模块在，脚本却拉不到，
+    App 广告照旧。脚本没法内联（体积大），只能靠这里盯着。
+    """
+    bad = []
+    for u in urls:
+        last = None
+        for _ in range(3):
+            try:
+                status, _raw = fetch(u)
+                last = status
+                if status == 200:
+                    break
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last = exc
+        if last != 200:
+            bad.append(f"{u} ← {last}")
+    return bad
+
+
 def main() -> int:
     quiet = "--quiet" in sys.argv
     update = "--update-baseline" in sys.argv
@@ -77,13 +104,16 @@ def main() -> int:
         # （例如开屏补丁只从 NoAd 里挑 9 条），拿上游文件的条数去比会误判成漂移。
         # 这类源只做本地自洽校验：sources.json 里登记的条数必须等于 rules 数组长度。
         if src.get("verify") == "local":
-            n = len(src.get("rules", []))
+            n = n_inline(src.get("rules", []))
             ok = (n == base["entries"])
             if not ok:
                 problems.append(
                     f"{src['id']}: 内联条数登记 {base['entries']} 条，实际 {n} 条 —— sources.json 自相矛盾")
             if not quiet or not ok:
                 print(f"{'OK' if ok else 'BAD':<6}{n:>9,}{'—':>11}  {src['name']}（内联，仅本地校验）")
+            for msg in check_script_urls(src.get("script_urls", [])):
+                problems.append(f"{src['id']}: script-path 不可达 — {msg}")
+                print(f"{'BAD':<6}{'-':>9}{'-':>11}  script-path 不可达  {msg}")
             continue
         try:
             status, raw = fetch(src["url"])

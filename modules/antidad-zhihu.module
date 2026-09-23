@@ -5,7 +5,7 @@
 
 [Rule]
 # ==========================================================================
-# 本文件由 scripts/build.py 生成于 2026-09-23 11:12 (UTC+8)
+# 本文件由 scripts/build.py 生成于 2026-09-23 12:29 (UTC+8)
 # 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
 # 源基线日期：2026-09-21
 # 生效白名单：3 条（来自 whitelist.txt）
@@ -25,7 +25,10 @@ DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
 # ② 知乎广告（官方 ZhihuAds，内联）
 #     内联 13 条 / 1,281 字节（不远程引用，规避上游重组目录导致的静默失效）
 #     来源 https://github.com/blackmatrix7/ios_rule_script
-#     ⚠️ 含 URL-REGEX，必须开 HTTPS 解密才生效。规则为**内联**而非 RULE-SET 引用：上游 blackmatrix7 会重组目录，本项目已亲历一次『模块引用路径被删而静默死亡』；此套规则自 2025-06 未变更、仅 1.3 KB，内联可彻底消除 404 风险。www.zhihu.com 为规则所需，官方 ZhihuAds_MITM 只声明了 api.zhihu.com 与 zhuanlan.zhihu.com，此处已补。
+#     ⚠️ 含 URL-REGEX，必须开 HTTPS 解密才生效。规则为**内联**而非 RULE-SET 引用：上游 
+#     blackmatrix7 会重组目录，本项目已亲历一次『模块引用路径被删而静默死亡』；此套规则自 
+#     2025-06 未变更、仅 1.3 KB，内联可彻底消除 404 风险。www.zhihu.com 为规则所需，官方 
+#     ZhihuAds_MITM 只声明了 api.zhihu.com 与 zhuanlan.zhihu.com，此处已补。
 # --------------------------------------------------------------------------
 DOMAIN,appcloud2.in.zhihu.com,REJECT
 DOMAIN,mqtt.zhihu.com,REJECT
@@ -43,6 +46,7 @@ USER-AGENT,AVOS*,REJECT
 
 [MITM]
 # %APPEND% = 追加到现有解密列表，不覆盖其它模块（含配置里已有的声明）。
+# `-` 前缀 = 排除；已统一排在末尾（先声明、后排除）。
 hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.226,103.41.167.234,103.41.167.235,103.41.167.236
 
 # --------------------------------------------------------------------------

@@ -5,7 +5,7 @@
 
 [Rule]
 # ==========================================================================
-# 本文件由 scripts/build.py 生成于 2026-09-21 13:11 (UTC+8)
+# 本文件由 scripts/build.py 生成于 2026-09-23 12:29 (UTC+8)
 # 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
 # 源基线日期：2026-09-21
 # 生效白名单：3 条（来自 whitelist.txt）
@@ -24,7 +24,8 @@ DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
 # ② blackmatrix7 AdvertisingLite（域名集）
 #     引用类型必须 DOMAIN-SET · 上游基线 37,692 条 / 595,771 字节
 #     来源 https://github.com/blackmatrix7/ios_rule_script
-#     ⚠️ AdvertisingLite 是 Advertising 的**兄弟目录**，不是子目录。拼成 .../Advertising/AdvertisingLite/... 会 404。
+#     ⚠️ AdvertisingLite 是 Advertising 的**兄弟目录**，不是子目录。拼成 .../Advertising/
+#     AdvertisingLite/... 会 404。
 # --------------------------------------------------------------------------
 DOMAIN-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/AdvertisingLite/AdvertisingLite_Domain.list,REJECT
 
@@ -32,6 +33,7 @@ DOMAIN-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/
 # ③ blackmatrix7 AdvertisingLite（关键词 + IP）
 #     引用类型必须 RULE-SET · 上游基线 376 条 / 12,869 字节
 #     来源 https://github.com/blackmatrix7/ios_rule_script
+#     187 DOMAIN-KEYWORD + 187 IP-CIDR + 2 URL-REGEX。
 # --------------------------------------------------------------------------
 RULE-SET,https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Shadowrocket/AdvertisingLite/AdvertisingLite.list,REJECT
 
