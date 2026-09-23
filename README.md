@@ -4,7 +4,10 @@
 
 把三个上游规则源整合成**一个模块、一个链接、一份白名单**，托管在自己的仓库里，链接不依赖第三方模块仓库是否改名、停更或归档。
 
-另附一个**可选补丁** `antidad-zhihu.module`：知乎广告走的是「正经域名下的路径」，域名级规则在原理上拦不到，只能用 URL 正则 —— 这个补丁补的正是这一块，代价是必须开 HTTPS 解密。
+另附两个**可选补丁**（都需要开 HTTPS 解密，不打算开就别装）：
+
+- `antidad-zhihu.module` —— 知乎广告走的是「正经域名下的路径」，域名级规则原理上拦不到，只能用 URL 正则。
+- `antidad-splash.module` —— 常用 App 的**开屏广告**，只解密 10 个目标。专治「URL 重写类模块一开就发热」，见第七节。
 
 ---
 
@@ -25,7 +28,7 @@
 
 ---
 
-## 二、三个档位 + 一个可选补丁
+## 二、三个档位 + 两个可选补丁
 
 | 档位 | 模块文件 | 引用源 | 规则量 | 适用 |
 |---|---|---|---|---|
@@ -33,24 +36,26 @@
 | **轻量版** | `antidad-lite.module` | blackmatrix7 AdvertisingLite ×2 | 约 3.8 万 | 省流量、少误杀；移动数据为主 |
 | **严格版** | `antidad-strict.module` | 整合版 + LOWERTOP AntiAD | 整合版 + 205 条 | ⚠️ 额外拦遥测/推送域，**会误杀**，先读下面第五节 |
 | **知乎补丁**（可选） | `antidad-zhihu.module` | 官方 ZhihuAds 13 条，**内联** | 13 条 | ⚠️ **必须开 HTTPS 解密**；只解决知乎一家，见第五节之一 |
+| **开屏广告**（可选） | `antidad-splash.module` | NoAd 中 8 个常用 App 的开屏接口，**内联** | 9 条 / 10 个解密目标 | ⚠️ **必须开 HTTPS 解密**；见第五节之二 |
 
 **为什么整合版要做双源**：anti-AD 与 blackmatrix7 域名集的交集只有 **1,926 条**，两边加起来去重后是 **382,242 条**。也就是说这两份名单几乎不重合 —— 只装一份会漏掉一大半。
 
 **前三个档位是纯 REJECT，不含 URL 重写和脚本，所以不需要开启 MITM、不用装证书。**
 
-**知乎补丁是唯一需要 MITM 的模块**，原因见第五节之一 —— 不打算开 HTTPS 解密就不要装它，装了只有开销没有收益。
+**两个补丁都需要 MITM**，原因见第五节 —— 不打算开 HTTPS 解密就不要装，装了只有开销没有收益。
 
 ---
 
 ## 三、安装
 
-模块地址（四条，前三档任选其一，第四条是可选补丁）：
+模块地址（前三档任选其一；后两条是可选补丁，按需叠加）：
 
 ```
 https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/modules/antidad-full.module
 https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/modules/antidad-lite.module
 https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/modules/antidad-strict.module
 https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/modules/antidad-zhihu.module
+https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/modules/antidad-splash.module
 ```
 
 **方式一 · 点链接**（iPhone 上直接点上面任意一条，会调起小火箭）
@@ -175,7 +180,67 @@ hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.22
 
 ---
 
-## 七、仓库结构与自动化
+## 七、开屏广告补丁 `antidad-splash.module`（可选，需 MITM）
+
+### 为什么做这个
+
+第三方通用模块能拦 App 内广告，但**代价是解密面极宽**。以
+`deezertidal/shadowrocket-rules` 的 `AdBlock.module`（NoAd）为例，实测：
+
+| 项 | 数值 |
+|---|---|
+| `[URL Rewrite]` 规则 | 264 条 |
+| 规则涉及的域名 | 206 个 |
+| `[MITM]` 解密目标 | **153 个** |
+| 其中高流量图片/视频 CDN 通配符 | ≥6 个：`img*.360buyimg.com`、`p*.meituan.net`、`*.tv.sohu.com`、`pic?.ajkimg.com`、`img*.10101111cdn.com`、`*.k.sohu.com` |
+
+**先纠正一个常见误解**：MITM 只对**实际访问**的域做解密 —— 声明 153 个 ≠ 开了 153 个的开销。
+所以"砍掉用不到的域"省不了电；真正省钱的是**砍掉你会频繁访问的高流量域**。
+
+而这些 CDN 域一旦被访问，**整域流量都要过一遍 TLS 解密再加密**：刷一次电商，
+一屏商品图就是 MB 级流量，而广告 API 只有几十 KB。**图片流量占 90% 以上 ——
+这才是「只开一个通用模块就明显发热」的物理原因。**
+
+本模块的做法：**只保留开屏广告接口，剔除全部 CDN 域。**
+
+| 项 | NoAd | 本模块 |
+|---|---|---|
+| 解密目标 | 153 | **10** |
+| 开屏广告 | 拦 | 拦（8 个常用 App）|
+| 商品列表里的图片广告位 | 拦 | 不拦（这是省电的代价）|
+
+### 覆盖范围
+
+9 条规则 / 8 个 App，全部指向**开屏广告接口**（JSON 接口，流量极小）：
+
+| App | 目标 |
+|---|---|
+| 闲鱼 | `acs.m.taobao.com` → `mtop.taobao.idle.home.welcome` |
+| 高德地图 | `m\d.amap.com` → `valueadded/alimama/splash_screen` |
+| 百度地图 | `newclient.map.baidu.com` → `phpui2/?qt=ads` |
+| 京东 | `api.m.jd.com`（`functionId=start` / `queryMaterialAdverts`）+ `(bdsp-x\|dsp-x).jd.com/adx/` |
+| 美团 | `wmapi.meituan.com/api/v\d/startpicture` |
+| 拼多多 | `api.(pinduoduo\|yangkeduo).com/api/cappuccino/splash` |
+| 小红书 | `www.xiaohongshu.com/api/sns/v\d/system_service/splash_config` |
+
+### 规则为什么内联
+
+这些接口路径由 App 自己的代码决定，**多年不变**。内联之后与上游彻底脱钩，
+上游怎么改都影响不到本模块。真有一天某个开屏广告回来了，说明那一条接口变了，改一行重新构建即可。
+
+**换句话说：不需要跟着上游更新。** 这不是"接管了别人的维护工作"，而是只承担 9 条稳定规则。
+
+### 与 NoAd 的关系
+
+**装本模块就可以卸掉 NoAd** —— 后者的主要收益（开屏广告）已被覆盖，而它的 153 个解密目标会持续带开销。
+
+顺带一提，`biliad.module` 用的是同一种思路：它的 `[MITM]` 里有
+`-*cdn*.biliapi.net`、`-*tracker*.biliapi.net`（**前缀 `-` 表示排除**），主动不解密视频 CDN。
+**审计第三方模块时，看它有没有 `-` 排除项，就能判断作者是「粗放」还是「精细」。**
+
+---
+
+## 八、仓库结构与自动化
 
 ```
 .
@@ -183,15 +248,17 @@ hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.22
 │   ├── antidad-full.module
 │   ├── antidad-lite.module
 │   ├── antidad-strict.module
-│   └── antidad-zhihu.module     # 含 [MITM]，需开 HTTPS 解密
+│   ├── antidad-zhihu.module     # 含 [MITM]，需开 HTTPS 解密
+│   └── antidad-splash.module    # 含 [URL Rewrite]，需开 HTTPS 解密
 ├── whitelist.txt                # ← 改这个
 ├── sources.json                 # ← 上游登记表 + 实测基线，改这个
 ├── scripts/
 │   ├── build.py                 # 由 whitelist + sources 生成 modules
-│   └── verify.py                # 校验上游可达性与内容漂移
+│   ├── verify.py                # 校验上游可达性与内容漂移
+│   └── check_mitm.py            # 校验每条 URL 级规则的目标都被 [MITM] 覆盖
 ├── STATUS.md                    # 自动生成的校验状态，不要手改
 └── .github/workflows/
-    ├── build.yml                # 改动 whitelist/sources 时自动重建模块
+    ├── build.yml                # 改动 whitelist/sources/scripts 时自动重建 + 校验
     └── verify.yml               # 每天 09:00(UTC+8) 校验上游，异常开 issue
 ```
 
@@ -202,13 +269,14 @@ python3 scripts/build.py                  # 重建 modules/
 python3 scripts/build.py --check          # 只校验是否需要重建
 python3 scripts/verify.py                 # 校验上游
 python3 scripts/verify.py --update-baseline   # 把当前实测写回 sources.json
+python3 scripts/check_mitm.py             # 校验 MITM 覆盖（缺声明=规则静默失效）
 ```
 
 **漂移检测怎么判**：规则集每天更新，内容哈希必然变，所以不用哈希当判据。`verify.py` 用「条数」和「字节数」双指标 —— 条数下降超过 15%、或字节缩水超过 30%，就判定异常并开 issue。这能抓到上游被清空、换格式、或不可达。
 
 ---
 
-## 八、设计取舍
+## 九、设计取舍
 
 **Q：为什么不把规则集直接存进仓库，彻底不依赖上游？**
 
@@ -228,7 +296,7 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
 
 ---
 
-## 九、已知坑
+## 十、已知坑
 
 1. **域名集必须用 `DOMAIN-SET` 引用**，关键词/IP 集必须用 `RULE-SET`。用错等于没拦。
 2. **`AdvertisingLite` 是 `Advertising` 的兄弟目录，不是子目录**。拼成 `.../Advertising/AdvertisingLite/...` 会 404。本仓库的 `sources.json` 里已按正确路径登记。
@@ -240,10 +308,14 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
 8. **上游删路径 → 模块 404 静默死亡**。第三方模块如果引用了 `raw.githubusercontent.com` 或 jsDelivr 的具体文件路径，上游一旦搬目录，模块不会报错，只是**一条规则都不生效**，而 MITM 解密照旧消耗电量。判断方法：把模块里引用的每个 URL 单独 curl 一次看是不是 404。本仓库因此把知乎那 13 条**内联**进模块。
 9. **开了 MITM 就必须同时开「HTTPS 解密」并信任根证书**，缺一不可（iOS 还要在「关于本机 → 证书信任设置」手动打开）。三项里缺任何一项，`URL-REGEX` 规则都静默失效。
 10. **不要把证书固定的域名放进 `[MITM]`**（银行、支付、证券类）。解密失败会让那些 App **直接连不上网**，比不拦广告糟得多。
+11. **`^https?://...` 形态的规则属于 `[URL Rewrite]` 段**，写进 `[Rule]` 段是非法语法（小火箭不会报错，只是不生效）。本仓库用 `sources.json` 的 `section` 字段区分，渲染时自动落到正确的段。
+12. **`[MITM]` 漏声明 = 规则静默失效**。规则里出现 `\d`、`\w`、`(a|b)` 交替写法时，肉眼核对极易漏（例如 `m\d\.amap\.com` 必须在 `[MITM]` 写 `m*.amap.com`，`(bdsp-x|dsp-x)\.jd\.com` 必须展开成两条）。用 `scripts/check_mitm.py` 自查，已接入 CI。
+13. **判断第三方模块"粗放"还是"精细"，看它的 `[MITM]` 有没有 `-` 排除项**。`-` 前缀表示排除，精细的模块会主动排除高流量 CDN（如 `biliad` 的 `-*cdn*.biliapi.net`）。**没有任何 `-` 排除项的通用模块，会把图片/视频 CDN 一并解密 —— 这是"一开就发热"的主因**，不是规则条数。
+14. **MITM 只对"实际访问的域"解密**。声明了 153 个域不等于产生 153 份开销；砍掉你根本不会访问的域省不了电。省电只能靠**砍掉你频繁访问的高流量域**。
 
 ---
 
-## 十、上游来源与实测基线
+## 十一、上游来源与实测基线
 
 基线日期 **2026-09-21**：
 
@@ -256,6 +328,7 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
 | blackmatrix7 AdvertisingLite（关键词+IP） | RULE-SET | 376 | 12.9 KB | 同上 |
 | LOWERTOP AntiAD（仅严格档） | RULE-SET | 205 | 8.3 KB | [LOWERTOP/Shadowrocket-First](https://github.com/LOWERTOP/Shadowrocket-First) |
 | 知乎广告（仅知乎补丁） | **INLINE** | 13 | 1.3 KB | blackmatrix7 `rewrite/.../ZhihuAssistantPlus/zhihu_plus.sgmodule` |
+| App 开屏广告（仅开屏补丁） | **INLINE** | 9 | 803 B | [deezertidal/shadowrocket-rules](https://github.com/deezertidal/shadowrocket-rules) `AdBlock.module` |
 
 规则内容归各上游作者所有，本仓库只做编排、白名单和校验。
 

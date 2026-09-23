@@ -7,7 +7,7 @@ on:
     paths:
       - 'whitelist.txt'
       - 'sources.json'
-      - 'scripts/build.py'
+      - 'scripts/**'
   workflow_dispatch:
 
 permissions:
@@ -25,6 +25,9 @@ jobs:
 
       - name: 重建 modules
         run: python3 scripts/build.py
+
+      - name: 校验 MITM 覆盖（规则目标必须全部被声明，否则静默失效）
+        run: python3 scripts/check_mitm.py
 
       - name: 提交变化
         run: |

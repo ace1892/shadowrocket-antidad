@@ -108,6 +108,33 @@
         "USER-AGENT,AVOS*,REJECT"
       ],
       "note": "⚠️ 含 URL-REGEX，必须开 HTTPS 解密才生效。规则为**内联**而非 RULE-SET 引用：上游 blackmatrix7 会重组目录，本项目已亲历一次『模块引用路径被删而静默死亡』；此套规则自 2025-06 未变更、仅 1.3 KB，内联可彻底消除 404 风险。www.zhihu.com 为规则所需，官方 ZhihuAds_MITM 只声明了 api.zhihu.com 与 zhuanlan.zhihu.com，此处已补。"
+    },
+    {
+      "id": "app-splash",
+      "name": "App 开屏广告（常用 App，内联）",
+      "kind": "INLINE",
+      "section": "URL Rewrite",
+      "verify": "local",
+      "url": "https://cdn.jsdelivr.net/gh/deezertidal/shadowrocket-rules@main/modules/AdBlock.module",
+      "homepage": "https://github.com/deezertidal/shadowrocket-rules",
+      "measured": {
+        "entries": 9,
+        "bytes": 803,
+        "sha256_16": ""
+      },
+      "mitm": "acs.m.taobao.com,m*.amap.com,newclient.map.baidu.com,api.m.jd.com,bdsp-x.jd.com,dsp-x.jd.com,wmapi.meituan.com,api.pinduoduo.com,api.yangkeduo.com,www.xiaohongshu.com",
+      "rules": [
+        "^https?:\\/\\/acs\\.m\\.taobao\\.com\\/gw\\/mtop\\.taobao\\.idle\\.home\\.welcome\\/ - reject",
+        "^https?:\\/\\/m\\d\\.amap\\.com\\/ws\\/valueadded\\/alimama\\/splash_screen\\/ - reject",
+        "^https?:\\/\\/newclient\\.map\\.baidu\\.com\\/client\\/phpui2\\/\\?qt=ads - reject",
+        "^https?:\\/\\/api\\.m\\.jd\\.com\\/client\\.action\\?functionId=start - reject",
+        "^https?:\\/\\/api\\.m\\.jd\\.com\\/client\\.action\\?functionId=queryMaterialAdverts - reject",
+        "^https?:\\/\\/(bdsp-x|dsp-x)\\.jd\\.com\\/adx\\/ - reject",
+        "^https?:\\/\\/wmapi\\.meituan\\.com\\/api\\/v\\d\\/startpicture - reject",
+        "^https?:\\/\\/api\\.(pinduoduo|yangkeduo)\\.com\\/api\\/cappuccino\\/splash - reject",
+        "^https?:\\/\\/www\\.xiaohongshu\\.com\\/api\\/sns\\/v\\d\\/system_service\\/splash_config - reject"
+      ],
+      "note": "⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。规则取自 NoAd 中 8 个常用 App 的开屏接口（闲鱼/高德/百度地图/京东/美团/拼多多/小红书），并**剔除 NoAd 全部图片 CDN 域** —— NoAd 原档声明的 img*.360buyimg.com、p*.meituan.net、*.tv.sohu.com 等会让商品图与视频流量全部解密，是「只开一个 NoAd 就明显发热」的主因。剔除后解密目标由 153 降到 10。"
     }
   ]
 }

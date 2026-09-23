@@ -74,6 +74,17 @@ PROFILES = [
         # Qure 图标库里没有 zhihu 图标（实测 404），故用 AdBlack 与前三档的 Advertising 区分。
         "icon": "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdBlack.png",
     },
+    {
+        # 针对「URL 重写类模块太耗电」的定向方案：
+        # NoAd 声明 153 个解密目标，其中含多个高流量图片/视频 CDN 通配符，
+        # 导致刷电商时商品图流量全部走 TLS 解密 —— 这是发热主因。
+        # 本档只保留常用 App 的**开屏广告接口**（流量极小），剔除全部 CDN 域。
+        "file": "antidad-splash.module",
+        "name": "反广告 · 开屏广告",
+        "desc": "常用 App 开屏广告 · 仅 10 个解密目标 · ⚠️ 必须开 HTTPS 解密才生效",
+        "sources": ["app-splash"],
+        "icon": "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdBlack.png",
+    },
 ]
 
 CST = timezone(timedelta(hours=8))
@@ -114,11 +125,42 @@ def parse_whitelist(text: str):
     return rules, commented
 
 
+def render_source_block(src, num):
+    """渲染单个规则源的注释头 + 规则内容（不含段名）。"""
+    m = src["measured"]
+    block = [
+        "",
+        "# " + "-" * 74,
+        f"# {chr(0x2460 + num - 1)} {src['name']}",
+    ]
+    if src["kind"] == "INLINE":
+        block.append(
+            f"#     内联 {m['entries']} 条 / {m['bytes']:,} 字节"
+            f"（不远程引用，规避上游重组目录导致的静默失效）")
+    else:
+        block.append(
+            f"#     引用类型必须 {src['kind']}"
+            f" · 上游基线 {m['entries']:,} 条 / {m['bytes']:,} 字节")
+    block.append(f"#     来源 {src['homepage']}")
+    if src["note"].startswith("⚠️"):
+        block.append(f"#     {src['note']}")
+    block.append("# " + "-" * 74)
+    if src["kind"] == "INLINE":
+        block += list(src["rules"])
+    else:
+        block.append(f"{src['kind']},{src['url']},REJECT")
+    return block
+
+
 def render(profile, sources, whitelist_rules, measured_at):
     now = datetime.now(CST).strftime("%Y-%m-%d %H:%M (UTC+8)")
     used = [sources[s] for s in profile["sources"]]
+    # 按目标段分组：`^https?://...` 形态的规则属于 [URL Rewrite] 段，
+    # 放进 [Rule] 段是非法语法。section 缺省为 "Rule"（既有档位的产物因此零变化）。
+    rule_srcs = [s for s in used if s.get("section", "Rule") == "Rule"]
+    rewrite_srcs = [s for s in used if s.get("section") == "URL Rewrite"]
     mitm_hosts = [s["mitm"] for s in used if s.get("mitm")]
-    needs_mitm = bool(mitm_hosts)
+    needs_mitm = bool(mitm_hosts) or bool(rewrite_srcs)
     icon = profile.get("icon", ICON)
 
     out = [
@@ -137,7 +179,7 @@ def render(profile, sources, whitelist_rules, measured_at):
         "# 生效前提：小火箭「全局路由」必须设为「配置」，含 [Rule] 的模块才工作。",
     ]
     if needs_mitm:
-        out.append("# ⚠️ 本模块含 URL-REGEX → 还必须开「HTTPS 解密」并信任根证书。")
+        out.append("# ⚠️ 本模块需要开「HTTPS 解密」并信任根证书（含 URL 重写 / URL-REGEX）。")
     out.append("# " + "=" * 74)
     out += [
         "",
@@ -150,30 +192,16 @@ def render(profile, sources, whitelist_rules, measured_at):
     else:
         out.append("# （whitelist.txt 当前没有生效条目）")
 
-    for idx, sid in enumerate(profile["sources"], start=2):
-        src = sources[sid]
-        m = src["measured"]
-        out += [
-            "",
-            "# " + "-" * 74,
-            f"# {chr(0x2460 + idx - 1)} {src['name']}",
-        ]
-        if src["kind"] == "INLINE":
-            out.append(
-                f"#     内联 {m['entries']} 条 / {m['bytes']:,} 字节"
-                f"（不远程引用，规避上游重组目录导致的静默失效）")
-        else:
-            out.append(
-                f"#     引用类型必须 {src['kind']}"
-                f" · 上游基线 {m['entries']:,} 条 / {m['bytes']:,} 字节")
-        out.append(f"#     来源 {src['homepage']}")
-        if src["note"].startswith("⚠️"):
-            out.append(f"#     {src['note']}")
-        out.append("# " + "-" * 74)
-        if src["kind"] == "INLINE":
-            out += list(src["rules"])
-        else:
-            out.append(f"{src['kind']},{src['url']},REJECT")
+    n = 2
+    for src in rule_srcs:
+        out += render_source_block(src, n)
+        n += 1
+
+    if rewrite_srcs:
+        out += ["", "[URL Rewrite]"]
+        for src in rewrite_srcs:
+            out += render_source_block(src, n)
+            n += 1
 
     if needs_mitm:
         out += [
@@ -191,8 +219,8 @@ def render(profile, sources, whitelist_rules, measured_at):
     ]
     if needs_mitm:
         out += [
-            "# · ⚠️ 含 URL-REGEX：未开「HTTPS 解密」+ 未信任根证书时，这些规则**静默不生效**"
-            "（小火箭不报错）。",
+            "# · ⚠️ 未开「HTTPS 解密」+ 未信任根证书时，[URL Rewrite] 与 URL-REGEX 规则"
+            "**静默不生效**（小火箭不报错）。",
             "# · 解密范围见上方 [MITM]。长期不用请直接卸载本模块，避免白付解密开销。",
         ]
     else:

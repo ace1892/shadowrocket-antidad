@@ -73,6 +73,18 @@ def main() -> int:
 
     for src in doc["sources"]:
         base = src["measured"]
+        # verify=local：url 只是「出处」，不是规则本体 —— 内联源常常只取了上游的一个子集
+        # （例如开屏补丁只从 NoAd 里挑 9 条），拿上游文件的条数去比会误判成漂移。
+        # 这类源只做本地自洽校验：sources.json 里登记的条数必须等于 rules 数组长度。
+        if src.get("verify") == "local":
+            n = len(src.get("rules", []))
+            ok = (n == base["entries"])
+            if not ok:
+                problems.append(
+                    f"{src['id']}: 内联条数登记 {base['entries']} 条，实际 {n} 条 —— sources.json 自相矛盾")
+            if not quiet or not ok:
+                print(f"{'OK' if ok else 'BAD':<6}{n:>9,}{'—':>11}  {src['name']}（内联，仅本地校验）")
+            continue
         try:
             status, raw = fetch(src["url"])
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
