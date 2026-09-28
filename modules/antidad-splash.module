@@ -1,30 +1,23 @@
 #!name= 反广告 · 开屏广告
-#!desc= 常用 App 开屏广告 · 仅 9 个解密目标 · ⚠️ 必须开 HTTPS 解密才生效
+#!desc= 常用 App 开屏广告 · 仅 9 个解密目标 · 纯 URL 层 · ⚠️ 必须开 HTTPS 解密才生效
 #!author= ace1892 · 仓库 https://github.com/ace1892/shadowrocket-antidad
 #!icon= https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdBlack.png
 
 [Rule]
 # ==========================================================================
-# 本文件由 scripts/build.py 生成于 2026-09-28 11:37 (UTC+8)
+# 本文件由 scripts/build.py 生成于 2026-09-28 14:17 (UTC+8)
 # 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
 # 源基线日期：2026-09-21
-# 生效白名单：3 条（来自 whitelist.txt）
+# 白名单：本档全是 URL 层规则，没有任何域名级 REJECT，故不注入白名单
 #
 # 生效前提：小火箭「全局路由」必须设为「配置」，含 [Rule] 的模块才工作。
 # ⚠️ 本模块需要开「HTTPS 解密」并信任根证书（含 URL 重写 / URL-REGEX）。
 # ==========================================================================
 
-# --------------------------------------------------------------------------
-# ① 误杀放行（必须最先：规则自上而下、命中即停）
-# --------------------------------------------------------------------------
-DOMAIN-SUFFIX,wxs.qq.com,DIRECT
-DOMAIN-SUFFIX,umeng.com,DIRECT
-DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
-
 [URL Rewrite]
 
 # --------------------------------------------------------------------------
-# ② App 开屏广告（常用 App，内联）
+# ① App 开屏广告（常用 App，内联）
 #     内联 9 条 / 803 字节（不远程引用，规避上游重组目录导致的静默失效）
 #     来源 https://github.com/deezertidal/shadowrocket-rules
 #     ⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。规则取自 NoAd 中 
@@ -59,5 +52,4 @@ hostname = %APPEND% acs.m.taobao.com,m*.amap.com,newclient.map.baidu.com,api.m.j
 # --------------------------------------------------------------------------
 # · ⚠️ 未开「HTTPS 解密」+ 未信任根证书时，[URL Rewrite] 与 URL-REGEX 规则**静默不生效**（小火箭不报错）。
 # · 解密范围见上方 [MITM]。长期不用请直接卸载本模块，避免白付解密开销。
-# · 规则集走 jsDelivr：raw.githubusercontent.com 在本机实测间歇性不通。
-#   jsDelivr 的 @分支 引用约有 12 小时缓存延迟，规则集不需要实时，可接受。
+# · 本模块**不含域名级规则**（也没有白名单）—— 域名级拦截请装「反广告 · 整合版」。

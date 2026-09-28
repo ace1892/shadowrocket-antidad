@@ -1,23 +1,39 @@
 name: build-modules
 
-# 改动 whitelist.txt / sources.json / build.py 之后自动重建 modules/*.module。
-# 触发路径不含 modules/，所以不会有「提交→触发→再提交」的循环。
+# 重建 modules/*.module。
+#
+# 两个触发源：
+#   1. push  —— 改动 whitelist.txt / sources.json / scripts/ 之后
+#      （触发路径不含 modules/，所以不会有「提交→触发→再提交」的循环）
+#   2. 每日定时 —— 必需。因为 bm-keyword-ip / bm-lite 这两个上游文件是
+#      「关键词 + IP + URL-REGEX」混装，本项目用 inline_filtered 在构建时
+#      剔除 URL-REGEX 后内联进模块。上游每 1~2 天更新一次，没有定时就吃不到更新。
+#      域名主体走 DOMAIN-SET 远程引用，不受此影响，始终跟随上游。
 on:
   push:
     paths:
       - 'whitelist.txt'
       - 'sources.json'
       - 'scripts/**'
+  schedule:
+    - cron: '30 20 * * *'    # 20:30 UTC = 04:30 UTC+8（bm7 的更新一般在 UTC 20:40 之后，留一点余量）
   workflow_dispatch:
 
 permissions:
   contents: write
+
+# 与 verify-sources 共用同一个仓库写权限，串行化避免 push 打架。
+concurrency:
+  group: repo-write
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -29,6 +45,9 @@ jobs:
       - name: 校验 MITM 覆盖（规则目标必须全部被声明，否则静默失效）
         run: python3 scripts/check_mitm.py
 
+      - name: 校验层级（域名级只管域名、URL 级只管 URL）
+        run: python3 scripts/audit_layers.py
+
       - name: 提交变化
         run: |
           if [ -z "$(git status --porcelain modules/)" ]; then
@@ -39,4 +58,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add modules/
           git commit -m "chore: 由 build.py 重建 modules"
+          git pull --rebase --autostash origin main
           git push

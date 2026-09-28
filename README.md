@@ -8,12 +8,16 @@
 
 - `antidad-rewrite.module` —— ★ **所有 URL 级去广告一个模块搞定**：App 开屏 + 知乎 + B站 + 微信公众号，**25 个解密目标、0 个 CDN**。见第七节。
 
-**日常只需要两个模块**：
+**日常只需要两个模块，而且两者不重叠**：
 
 ```
-antidad-full.module      域名级 · 29.6 万条域名 · 0 解密
-antidad-rewrite.module   URL 级 · 全部 App 内去广告 · 25 解密
+antidad-full.module      域名级 · 29.6 万条域名 + 767 条关键词/IP · 0 解密
+antidad-rewrite.module   URL 级 · 全部 App 内去广告 · 25 解密 · 不含域名级规则
 ```
+
+> **分层是这个项目的硬约束**：域名级模块里**只有** `DOMAIN*` / `IP-CIDR` / 规则集引用，
+> URL 级模块里**只有** `URL-REGEX` / `[URL Rewrite]` / `[Script]` / `[MITM]`。
+> 两个方向都不许越界 —— 由 `scripts/audit_layers.py` 每次构建时强制断言（见第八节）。
 
 ---
 
@@ -40,12 +44,16 @@ antidad-rewrite.module   URL 级 · 全部 App 内去广告 · 25 解密
 
 | 类 | 档位 | 模块文件 | 内容 | 解密目标 | 适用 |
 |---|---|---|---|---|---|
-| 域名级 | **整合版**（推荐） | `antidad-full.module` | anti-AD + blackmatrix7 域名集 + 关键词/IP，去重后约 29.6 万域名 | **0** | 默认选择。双源互补，覆盖最广 |
+| 域名级 | **整合版**（推荐） | `antidad-full.module` | anti-AD + blackmatrix7 域名集 + 767 条关键词/IP + 4 条知乎域名/IP，去重后约 29.6 万域名 | **0** | 默认选择。双源互补，覆盖最广 |
 | 域名级 | 轻量版 | `antidad-lite.module` | blackmatrix7 AdvertisingLite ×2，约 3.8 万 | **0** | 省流量、少误杀 |
 | 域名级 | 严格版 | `antidad-strict.module` | 整合版 + LOWERTOP AntiAD | **0** | ⚠️ 额外拦遥测/推送域，**会误杀**，见第五节 |
-| URL 级 | **重写整合**（推荐） | `antidad-rewrite.module` | App开屏 + 知乎 + B站 + 微信公众号，**全部内联** | **25** | ⭐ 主力。所有 URL 级去广告只装这一个 |
+| URL 级 | **重写整合**（推荐） | `antidad-rewrite.module` | App开屏 + 知乎 + B站 + 微信公众号，**全部内联**，**不含任何域名级规则** | **25** | ⭐ 主力。所有 URL 级去广告只装这一个 |
 | URL 级 | 开屏（子集） | `antidad-splash.module` | 仅 `antidad-rewrite` 里的 App 开屏部分 | 9 | 只要开屏、不碰 B站脚本 |
-| URL 级 | 知乎（子集） | `antidad-zhihu.module` | 仅 `antidad-rewrite` 里的知乎部分 | 7 | 只想去知乎广告、解密面要最小 |
+| 子集 | 知乎 | `antidad-zhihu.module` | 知乎的域名层（4 条）+ URL 层（8 条）全套 | 7 | 只想去知乎广告、解密面要最小 |
+
+**域名级模块的白名单只出现在含域名级黑名单的档里**（积分版 / 轻量版 / 严格版）。
+URL 级档位没有任何域名级 `REJECT`，白名单在那里没有放行对象 —— 注进去只会让两个模块出现
+逐字重复的同样 3 行，那正是本README要消灭的「重叠」。这条也由 `audit_layers.py` 断言。
 
 **为什么整合版要做双源**（2026-09-28 复测）：anti-AD 102,114 条、blackmatrix7 域名集 285,470 条，
 **两者去重后是 295,994 条**。即 anti-AD 的 89.7%（91,590 条）本来就在 blackmatrix7 里，
@@ -127,6 +135,11 @@ DOMAIN,exact.example.com     → DOMAIN,exact.example.com,DIRECT
 
 `whitelist.txt` 第二节里另有一批**注释掉的按需放行项**（拼多多接口域、Google 广告域），确认被误杀后再取消注释。
 
+> **白名单只注入「含域名级黑名单」的档位**：`antidad-full` / `antidad-lite` / `antidad-strict`。
+> URL 级档位（`antidad-rewrite` / `splash` / `zhihu`）没有任何域名级 `REJECT`，
+> 白名单在那里没有放行对象 —— 注进去只会让两个模块出现逐字重复的同样 3 行。
+> 这条由 `audit_layers.py` 强制断言。
+
 ---
 
 ## 五、⚠️ 严格版的额外风险
@@ -164,11 +177,31 @@ HTTPS 把请求切成「域名 + 加密路径」两段，**域名级规则只看
 
 ### 规则为什么是「内联」而不是远程引用
 
-`source.json` 里这条源的 `kind` 是 `INLINE` —— 13 条规则**原文嵌在模块里**，不写 `RULE-SET,<url>`。
+`sources.json` 里这两条源的 `kind` 都是 `INLINE` —— 规则**原文嵌在模块里**，不写 `RULE-SET,<url>`。
 
 理由就是本文第一节说的那件事：上游 blackmatrix7 会重组目录，本项目已经因为「模块引用上游文件被删」吃过一次亏（第三方知乎模块 404 静默死亡）。这套规则自 2025-06 未变更、总共 1.3 KB，内联进来可彻底消除 404 风险；代价是上游真更新时不会自动跟随，需要手动更新 `sources.json` 里的 `rules` 再重新构建。
 
-**`verify.py` 仍然每天盯着它** —— 上游文件条数下降超 15% 或字节缩水超 30% 会开 issue。看到 `zhihu-inline` 报漂移，就是官方改了规则，需要人工同步一次。
+**`verify.py` 仍然每天盯着上游那个 `.sgmodule`** —— 条数下降超 15% 或字节缩水超 30% 会开 issue。看到 `zhihu-domain` / `zhihu-url` 报漂移，就是官方改了规则，需要人工同步一次。
+
+### 2026-09-28：按「层」拆成两个源
+
+原来是一条 `zhihu-inline`（13 条混在一起），现在拆开：
+
+| 源 | 条数 | 归到哪个模块 | 为什么 |
+|---|---|---|---|
+| `zhihu-domain` | 4 | `antidad-full` / `strict` / `zhihu` | `DOMAIN` ×2 + `IP-CIDR` ×2，是**连接层 REJECT**，根本不需要解密 —— 是域名级模块的活 |
+| `zhihu-url` | 8 | `antidad-rewrite` / `zhihu` | 7 条 `URL-REGEX` + 1 条 `USER-AGENT`，**必须解密才生效** |
+
+拆的理由有两个，都是「谁该干什么」的问题：
+
+1. 把那 4 条留在 URL 级模块里，等于让一个「纯 URL 层」的模块干连接层的活 ——
+   而且**只装 `antidad-rewrite`、不装 `antidad-full` 的人会漏拦这 4 条**。
+2. `USER-AGENT` 反过来不能挪去域名级模块：**HTTPS 下 UA 在密文里，不开解密读不到**，
+   挪过去就是永远失效。它的归类依据是「需不需要解密」，不是「长得像不像域名规则」。
+
+另外删掉了原第 5 条 `DOMAIN,appcloud2.in.zhihu.com,REJECT` —— 实测该域**已经躺在
+blackmatrix7 Advertising 域名集里**（anti-AD 亦有），域名级模块早已整域 REJECT，
+留着就是两个模块之间的死代码。
 
 ### 解密范围（`[MITM]`）
 
@@ -184,14 +217,14 @@ hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.22
 
 ### 装它的前提与代价
 
-**13 条规则里，5 条不需要解密就生效，8 条必须解密：**
+**13 条规则里，4 条不需要解密就生效、9 条必须解密**（前者已挪进域名级模块）：
 
-| 规则类型 | 条数 | 需要 MITM？ | 拦什么 |
-|---|---|---|---|
-| `DOMAIN` | 3 | ❌ 不需要 | `appcloud2.in.zhihu.com`、`mqtt.zhihu.com`、`sugar.zhihu.com` |
-| `IP-CIDR` | 2 | ❌ 不需要 | 知乎广告服务器的 IP + IPv6 |
-| `URL-REGEX` | 7 | ✅ **需要** | 开屏 `launch_v2`、banner、品牌卡片、相关推荐 |
-| `USER-AGENT` | 1 | ✅ **需要** | `AVOS*`（知乎系的旧 UA）|
+| 规则类型 | 条数 | 需要 MITM？ | 在哪 | 拦什么 |
+|---|---|---|---|---|
+| `DOMAIN` | 2 | ❌ 不需要 | `antidad-full` | `mqtt.zhihu.com`、`sugar.zhihu.com` |
+| `IP-CIDR` | 2 | ❌ 不需要 | `antidad-full` | 知乎广告服务器的 IP + IPv6 |
+| `URL-REGEX` | 7 | ✅ **需要** | 本模块 | 开屏 `launch_v2`、banner、品牌卡片、相关推荐 |
+| `USER-AGENT` | 1 | ✅ **需要** | 本模块 | `AVOS*`（知乎系的旧 UA）|
 
 开屏广告和 banner 都在那 7 条里 —— **不开解密，核心收益拿不到**。
 
@@ -211,15 +244,19 @@ hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.22
 
 ### 里面装了什么
 
-一个模块收齐所有 URL 级去广告，**规则全部内联**（不远程引用规则集），**脚本也全部自持**（收在 `js/`，不指向别人的仓库）：
+一个模块收齐所有 URL 级去广告，**规则全部内联**（不远程引用规则集），**脚本也全部自持**（收在 `js/`，不指向别人的仓库）。
+**本模块不含任何域名级规则，也不含白名单** —— 那是 `antidad-full` 的活（见第七节末与第十节第 23 条）：
 
 | 来源 | 条数 | 目标段 | 覆盖内容 |
 |---|---|---|---|
 | App 开屏 | 9 | `[URL Rewrite]` | 闲鱼 / 高德地图 / 百度地图 / 京东 / 美团 / 拼多多 / 小红书 的开屏接口 |
 | B站 URL 重写 | 10 | `[URL Rewrite]` | 开屏 / 搜索默认词 / 首页活动 / 会员购物料 / 播放页小卡片 / 相关推荐 / 大家都在搜 / 动态话题 / 漫画页 |
-| 知乎 | 13 | `[Rule]` | `DOMAIN` + `IP-CIDR` + 8 条 `URL-REGEX`（来自 blackmatrix7 官方 ZhihuAds） |
+| 知乎 URL 层 | 8 | `[Rule]` | 7 条 `URL-REGEX` + 1 条 `USER-AGENT`（来自 blackmatrix7 官方 ZhihuAds） |
 | B站 脚本 | 9 | `[Script]` | 观影页 / 开屏预加载 / 热搜发现 / 推荐流 / 追番 / 直播 / 动态 / Proto / 动态广告 |
 | 微信公众号 脚本 | 1 | `[Script]` | 文章底部广告（`mp/getappmsgad`） |
+
+`[Rule]` 段只有 8 行 —— 全是**必须解密才生效**的规则（`URL-REGEX` 与 `USER-AGENT`）。
+域名层的那 4 条（`mqtt` / `sugar` 域名 + 2 个腾讯云 IP）已移到 `antidad-full`。
 
 **为什么要合并**：装三个模块时，解密面是三者之和，而且**你看不见它**。
 合成一个模块后，`[MITM]` 是一份可审计的名单，`check_mitm.py` 也能一次校验到位。
@@ -346,14 +383,32 @@ B站上游 `biliad.module` 里还有这些，**本模块不收**，因为它们�
 │   ├── bilibili-proto.js        # 107 KB  B站 Proto（1 条）| app2smile/rules
 │   └── bilibili_dynamic.js      #  45 KB  B站动态（1 条）| yjqiang/surge_scripts
 ├── scripts/
-│   ├── build.py                 # 由 whitelist + sources 生成 modules
-│   ├── verify.py                # 校验上游可达性、内容漂移、以及 script-path 是否还活着
-│   └── check_mitm.py            # 校验每条 URL 级规则（含 [Script] 的 pattern）都被 [MITM] 覆盖
+│   ├── build.py                 # 由 whitelist + sources 生成 modules；带 inline_filtered 的源在构建时拉上游、剔除指定类型后内联
+│   ├── verify.py                # 校验上游可达性、内容漂移、以及 script-path / 自持副本是否还活着
+│   ├── check_mitm.py            # 校验每条 URL 级规则（含 [Script] 的 pattern）都被 [MITM] 覆盖
+│   └── audit_layers.py          # ★ 层级断言：域名级只管域名、URL 级只管 URL、白名单不重复
 ├── STATUS.md                    # 自动生成的校验状态，不要手改
 └── .github/workflows/
-    ├── build.yml                # 改动 whitelist/sources/scripts 时自动重建 + 校验 MITM 覆盖
+    ├── build.yml                # 改 whitelist/sources/scripts 时重建 + 校验；另有每日定时（内联源要跟上游）
     └── verify.yml               # 每天 09:00(UTC+8) 校验上游，异常开 issue
 ```
+
+### `audit_layers.py` —— 把「分层」变成会失败的断言
+
+2026-09-28 做了一次人工审计，结论是**两个模块互相越界**：URL 级模块里躺着 4 条域名级规则
+和一条重复的白名单；域名级模块里则通过上游规则集带进了 14 条 `URL-REGEX`。
+手工查一次不够 —— 得让它在每次构建时自动失败。三条断言：
+
+| 断言 | 抓什么 |
+|---|---|
+| 一个模块不得同时含域名层与 URL 层规则 | 「零解密的模块」里塞了只有解密才生效的规则，或「URL 级模块」在做连接层拦截 |
+| 白名单只允许出现在含域名级黑名单的档里 | 两个模块出现**逐字重复的 3 行白名单**（原来就有） |
+| 子集档的每条规则都必须在父档里存在 | `splash` / `zhihu` 悄悄跑偏、和父档不一致 |
+
+域名层 = `DOMAIN` / `DOMAIN-SUFFIX` / `DOMAIN-KEYWORD` / `IP-CIDR` / `RULE-SET` / `DOMAIN-SET`；
+URL 层 = `URL-REGEX` 行、`[URL Rewrite]` 段、`[Script]` 段、`[MITM]` 段。
+两边的分界不看规则「长得像什么」，看**需不需要 HTTPS 解密** ——
+这就是为什么 `USER-AGENT`（HTTPS 下 UA 在密文里）算 URL 层，而 `IP-CIDR` 算域名层。
 
 ### `js/` —— 为什么不直接引用别人的脚本
 
@@ -392,12 +447,21 @@ B站上游 `biliad.module` 里还有这些，**本模块不收**，因为它们�
 本地运行（只用标准库，不需要装依赖）：
 
 ```bash
-python3 scripts/build.py                  # 重建 modules/
+python3 scripts/build.py                  # 重建 modules/（带 inline_filtered 的源需要联网）
 python3 scripts/build.py --check          # 只校验是否需要重建
 python3 scripts/verify.py                 # 校验上游
 python3 scripts/verify.py --update-baseline   # 把当前实测写回 sources.json
 python3 scripts/check_mitm.py             # 校验 MITM 覆盖（缺声明=规则静默失效）
+python3 scripts/audit_layers.py           # 校验分层（域名级只管域名、URL 级只管 URL）
 ```
+
+**两点和以前不一样**：
+
+1. `build.py` 现在会**联网** —— 它要为 `inline_filtered` 的源（`bm-keyword-ip` / `bm-lite`）
+   拉上游并剔除 `URL-REGEX`。拉不到会直接报错退出，**不静默退回旧内容**
+   （否则你会以为模块更新了，其实还是几天前的快照）。
+2. `build.yml` 因此多了**每日定时**（04:30 UTC+8）—— 那两个上游文件每 1~2 天更新一次，
+   没有定时就吃不到。域名主体不受影响，它走 `DOMAIN-SET` 远程引用，始终跟随上游。
 
 **漂移检测怎么判**：规则集每天更新，内容哈希必然变，所以不用哈希当判据。`verify.py` 用「条数」和「字节数」双指标 —— 条数下降超过 15%、或字节缩水超过 30%，就判定异常并开 issue。这能抓到上游被清空、换格式、或不可达。
 
@@ -431,8 +495,8 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
 4. **全局路由必须是「配置」模式**。
 5. **不要一次性装完所有反广告模块**。模块间规则会叠加，出问题难定位。一个档位一个档位来。
 6. 家里如果有 AdGuard Home 之类的 DNS 层拦截，**家庭 Wi-Fi 下已经覆盖大部分广告域名**。本模块的真正价值在**蜂窝数据和外部 Wi-Fi** 场景。
-7. 上游规则集含 `URL-REGEX` 类规则，未开 MITM 时不生效（无害，不是 bug）。
-8. **上游删路径 → 模块 404 静默死亡**。第三方模块如果引用了 `raw.githubusercontent.com` 或 jsDelivr 的具体文件路径，上游一旦搬目录，模块不会报错，只是**一条规则都不生效**，而 MITM 解密照旧消耗电量。判断方法：把模块里引用的每个 URL 单独 curl 一次看是不是 404。本仓库因此把知乎那 13 条**内联**进模块。
+7. **上游规则集是「混合类型」的，引用它等于把 URL 层规则塞进域名级模块**。`blackmatrix7 Advertising.list` 781 行 = 278 `DOMAIN-KEYWORD` + 489 `IP-CIDR` + **14 `URL-REGEX`**，上游自己的 DESCRIPTION 就写着「分流规则中含有 URL-REGEX 类型，建议搭配 MITM 使用」。这 14 条在本项目里**全是死代码**：10 条的落点域早就躺在域名集里被整域 REJECT，剩下 4 条（`ad\d.sina.com`、`app.58.com/api/log/`、`cdn-1rtb.caiyunapp.com/creative/`、`/\d+/sign_d`）因为本模块从不解密那些 host 而永不生效。但「不生效」是靠**外部条件**维持的 —— 谁装一次 bm7 的 `Advertising_MITM.conf`（200+ host）它们就活了。已于 2026-09-28 在**构建时剔除**（`inline_filtered`），见第 23 条。
+8. **上游删路径 → 模块 404 静默死亡**。第三方模块如果引用了 `raw.githubusercontent.com` 或 jsDelivr 的具体文件路径，上游一旦搬目录，模块不会报错，只是**一条规则都不生效**，而 MITM 解密照旧消耗电量。判断方法：把模块里引用的每个 URL 单独 curl 一次看是不是 404。本仓库因此把知乎那 13 条**内联**进模块（拆成 `zhihu-domain` 4 条 + `zhihu-url` 8 条）。
 9. **开了 MITM 就必须同时开「HTTPS 解密」并信任根证书**，缺一不可（iOS 还要在「关于本机 → 证书信任设置」手动打开）。三项里缺任何一项，`URL-REGEX` 规则都静默失效。
 10. **不要把证书固定的域名放进 `[MITM]`**（银行、支付、证券类）。解密失败会让那些 App **直接连不上网**，比不拦广告糟得多。
 11. **`^https?://...` 形态的规则属于 `[URL Rewrite]` 段**，写进 `[Rule]` 段是非法语法（小火箭不会报错，只是不生效）。本仓库用 `sources.json` 的 `section` 字段区分，渲染时自动落到正确的段。
@@ -466,6 +530,25 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
    `DynAll` 那个接口**同时落在这两条的范围内** —— 一个请求要跑两个 100 KB 级的 protobuf 脚本，谁后 `$done` 谁生效。这是上游原始写法，本仓库**保持原样未改动**（改了等于替上游做产品决策）。真要腾开销，删掉 `sources.json` 里 `bili_9` 那一条是最省事的落点。排查同类问题时记住：**规则重叠不会报错，只会静默多解密、多跑脚本**。
 22. **别把两个有交集的源「相加」当并集**。本项目在 §二 写过「anti-AD 与 blackmatrix7 交集只有 1,926 条、去重后 382,242 条」——这是 2026-09-21 的错误算法留下的，382,242 其实就是 `102,114 + 285,470` 的近似和，**两源根本没做去重**，交集的 1,926 也是这个错误前提推出来的。2026-09-28 按域名归一化（统一 `lstrip('.')`）复测：**交集 91,590 条、并集 295,994 条**，差 47 倍。
     两个坑叠在一起：① 没去重；② 两个列表的**前导点格式不一致**（anti-AD 全部带 `.`，blackmatrix7 域名集是带点/不带点混排，实测 269,029 : 16,441），直接按行文本比对会漏掉一半匹配。**凡是「A 与 B 互补」这类结论，必须先把两边归一化再算交集。**
+23. **⭐ 「域名级」和「URL 级」不是命名习惯，是硬约束 —— 而且会互相制造死代码**。2026-09-28 的审计实测出的两类越界：
+
+    | 越界 | 具体 | 后果 |
+    |---|---|---|
+    | URL 级模块里塞了域名级规则 | `antidad-rewrite` 的 `[Rule]` 里有 3 条 `DOMAIN` + 2 条 `IP-CIDR` + 一份 3 行白名单 | 该模块是「纯 URL 层」却干连接层的活；**只装它不装 `antidad-full` 的人会漏拦这 4 条**；白名单在它这儿没有任何放行对象，纯粹制造两模块逐字重复 |
+    | 域名级模块里塞了 URL 级规则 | `antidad-full` 通过 `Advertising.list` 带进 14 条 `URL-REGEX` | 上面第 7 条 |
+    | 跨模块死代码 | `antidad-rewrite` 里 `DOMAIN,appcloud2.in.zhihu.com,REJECT` | 该域已在域名集里被整域 REJECT，URL 规则**拿不到这条请求** |
+
+    **判断一个规则属于哪层，只看「需不需要 HTTPS 解密」，不看它长得像不像域名规则**：
+
+    | 规则 | 需要解密？ | 归哪层 | 反直觉之处 |
+    |---|---|---|---|
+    | `DOMAIN` / `DOMAIN-SUFFIX` / `IP-CIDR` | ❌ | 域名层 | — |
+    | `USER-AGENT` | ✅ | **URL 层** | HTTPS 下 UA 在**密文里**，不开解密读不到 —— 挪去域名级模块会永远失效 |
+    | `URL-REGEX` | ✅ | URL 层 | 即使它匹配的是某个域，也拿不到解密后的路径 |
+
+    这类问题**不会报任何错**：模块照装、解密照做、广告照旧。所以本项目把结论固化成
+    `scripts/audit_layers.py`，构建时强制断言（见第八节），而不是靠人记住。
+24. **「剥离上游自带的 URL 规则」只能在构建时做**。`Advertising.list` 每 1~2 天更新一次，既没有「只有关键词/IP 的子文件」可换，也不能把这 14 条搬进 URL 级模块去干活（本模块从不解密那些 host，搬过去还是死代码）。唯一干净的做法是构建时拉取 → 剔除 → 内联。代价是这部分从「运行时永远最新」变成「构建快照」，所以要给 `build.yml` 配上**每日定时**；域名主体照旧走 `DOMAIN-SET` 远程引用，不受影响。反面做法是「保留引用 + 靠注释说明它们不生效」—— 那是**靠外部条件维持的正确性**，别人装一个 bm7 的 MITM 声明就破了。
 
 ---
 
@@ -477,12 +560,16 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
 |---|---|---|---|---|
 | anti-AD 主列表 | DOMAIN-SET | 100,732 | 2.0 MB | [privacy-protection-tools/anti-AD](https://github.com/privacy-protection-tools/anti-AD) |
 | blackmatrix7 Advertising（域名集） | DOMAIN-SET | 283,435 | 5.7 MB | [blackmatrix7/ios_rule_script](https://github.com/blackmatrix7/ios_rule_script) |
-| blackmatrix7 Advertising（关键词+IP+正则） | RULE-SET | 781 | 26 KB | 同上 |
+| blackmatrix7 Advertising（关键词+IP+正则） | RULE-SET → **构建时剔除 URL-REGEX 后内联 767 条** | 781 | 26 KB | 同上 |
 | blackmatrix7 AdvertisingLite（域名集） | DOMAIN-SET | 37,692 | 596 KB | 同上 |
-| blackmatrix7 AdvertisingLite（关键词+IP） | RULE-SET | 376 | 12.9 KB | 同上 |
+| blackmatrix7 AdvertisingLite（关键词+IP） | RULE-SET → **构建时剔除 URL-REGEX 后内联 374 条** | 376 | 12.9 KB | 同上 |
 | LOWERTOP AntiAD（仅严格档） | RULE-SET | 205 | 8.3 KB | [LOWERTOP/Shadowrocket-First](https://github.com/LOWERTOP/Shadowrocket-First) |
-| 知乎广告（仅知乎补丁） | **INLINE** | 13 | 1.3 KB | blackmatrix7 `rewrite/.../ZhihuAssistantPlus/zhihu_plus.sgmodule` |
+| 知乎 域名/IP 层（整合版 / 严格版 / 知乎补丁） | **INLINE** | 4 | 260 B | blackmatrix7 `rewrite/.../ZhihuAssistantPlus/zhihu_plus.sgmodule` |
+| 知乎 URL 层（重写整合 / 知乎补丁） | **INLINE** | 8 | 1.0 KB | 同上 |
 | App 开屏广告（仅开屏补丁） | **INLINE** | 9 | 803 B | [deezertidal/shadowrocket-rules](https://github.com/deezertidal/shadowrocket-rules) `AdBlock.module` |
+
+⚠️ 表中 `DIRECT` 类基线是 2026-09-21 的快照，`verify.py` 每天用当前实测对照它做漂移判断；
+`measured` 字段里的数字**是漂移基线而不是当前值**，当前值见 `STATUS.md`。
 
 规则内容归各上游作者所有，本仓库只做编排、白名单和校验。
 

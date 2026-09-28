@@ -1,40 +1,33 @@
 #!name= 反广告 · 重写整合
-#!desc= App开屏 + 知乎 + B站 + 微信公众号 去广告 · 25 个解密目标 · ⚠️ 必须开 HTTPS 解密
+#!desc= App开屏 + 知乎 + B站 + 微信公众号 去广告 · 25 个解密目标 · 纯 URL 层、不含域名级规则 · ⚠️ 必须开 HTTPS 解密
 #!author= ace1892 · 仓库 https://github.com/ace1892/shadowrocket-antidad
 #!icon= https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdWhite.png
 
 [Rule]
 # ==========================================================================
-# 本文件由 scripts/build.py 生成于 2026-09-28 11:37 (UTC+8)
+# 本文件由 scripts/build.py 生成于 2026-09-28 14:23 (UTC+8)
 # 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
 # 源基线日期：2026-09-21
-# 生效白名单：3 条（来自 whitelist.txt）
+# 白名单：本档全是 URL 层规则，没有任何域名级 REJECT，故不注入白名单
 #
 # 生效前提：小火箭「全局路由」必须设为「配置」，含 [Rule] 的模块才工作。
 # ⚠️ 本模块需要开「HTTPS 解密」并信任根证书（含 URL 重写 / URL-REGEX）。
 # ==========================================================================
 
 # --------------------------------------------------------------------------
-# ① 误杀放行（必须最先：规则自上而下、命中即停）
-# --------------------------------------------------------------------------
-DOMAIN-SUFFIX,wxs.qq.com,DIRECT
-DOMAIN-SUFFIX,umeng.com,DIRECT
-DOMAIN-SUFFIX,app-analytics-services.com,DIRECT
-
-# --------------------------------------------------------------------------
-# ② 知乎广告（官方 ZhihuAds，内联）
+# ① 知乎广告 · URL 层（官方 ZhihuAds，内联）
 #     内联 13 条 / 1,281 字节（不远程引用，规避上游重组目录导致的静默失效）
 #     来源 https://github.com/blackmatrix7/ios_rule_script
-#     ⚠️ 含 URL-REGEX，必须开 HTTPS 解密才生效。规则为**内联**而非 RULE-SET 引用：上游 
+#     ★ 2026-09-28 从原 zhihu-inline 拆出：7 条 URL-REGEX + 1 条 USER-AGENT，
+#     都是**必须解密才生效**的规则，留在 URL 级模块。USER-AGENT 单独说明：HTTPS 下 UA 
+#     在密文里，**不开解密读不到**，所以它同属 URL 层、
+#     不能挪去域名级模块（挪过去就永远失效）。规则为**内联**而非 RULE-SET 引用：上游 
 #     blackmatrix7 会重组目录，本项目已亲历一次『模块引用路径被删而静默死亡』；此套规则自 
 #     2025-06 未变更、仅 1.3 KB，内联可彻底消除 404 风险。www.zhihu.com 为规则所需，官方 
-#     ZhihuAds_MITM 只声明了 api.zhihu.com 与 zhuanlan.zhihu.com，此处已补。
+#     ZhihuAds_MITM 只声明了 api.zhihu.com 与 zhuanlan.zhihu.com，此处已补。注：measured 
+#     记的是上游 .sgmodule 的 13 条（两源共用同一 url，verify.py 做的是上游漂移监控），
+#     本源实际 8 条。
 # --------------------------------------------------------------------------
-DOMAIN,appcloud2.in.zhihu.com,REJECT
-DOMAIN,mqtt.zhihu.com,REJECT
-DOMAIN,sugar.zhihu.com,REJECT
-IP-CIDR,118.89.204.198/32,REJECT-DROP,no-resolve
-IP-CIDR,2402:4e00:1200:ed00:0:9089:6dac:96b6/128,REJECT-DROP,no-resolve
 URL-REGEX,^https?:\/\/(api\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/brand\/question\/\d+/card\?,REJECT
 URL-REGEX,^https?:\/\/(api\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/commercial_api\/launch_v2\?,REJECT
 URL-REGEX,^https?:\/\/(api\.zhihu\.com|(103\.41\.167\.(226|234|235|236)))\/explore\/entry\/tips,REJECT-TINYGIF
@@ -47,7 +40,7 @@ USER-AGENT,AVOS*,REJECT
 [URL Rewrite]
 
 # --------------------------------------------------------------------------
-# ③ App 开屏广告（常用 App，内联）
+# ② App 开屏广告（常用 App，内联）
 #     内联 9 条 / 803 字节（不远程引用，规避上游重组目录导致的静默失效）
 #     来源 https://github.com/deezertidal/shadowrocket-rules
 #     ⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。规则取自 NoAd 中 
@@ -73,7 +66,7 @@ USER-AGENT,AVOS*,REJECT
 ^https?:\/\/www\.xiaohongshu\.com\/api\/sns\/v\d\/system_service\/splash_config - reject
 
 # --------------------------------------------------------------------------
-# ④ 哔哩哔哩 去广告 · URL 重写（内联）
+# ③ 哔哩哔哩 去广告 · URL 重写（内联）
 #     内联 10 条 / 1,117 字节（不远程引用，规避上游重组目录导致的静默失效）
 #     来源 https://github.com/deezertidal/shadowrocket-rules
 #     ⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。取自上游 biliad.
@@ -108,7 +101,7 @@ USER-AGENT,AVOS*,REJECT
 [Script]
 
 # --------------------------------------------------------------------------
-# ⑤ 哔哩哔哩 去广告 · 脚本（内联）
+# ④ 哔哩哔哩 去广告 · 脚本（内联）
 #     内联 9 条 / 2,261 字节（不远程引用，规避上游重组目录导致的静默失效）
 #     来源 https://github.com/deezertidal/shadowrocket-rules
 #     ⚠️ 全部为 requires-body=1（需读完整响应体）—— 这是全配置最耗电的一项：
@@ -144,7 +137,7 @@ antidad_bili_8=type=http-response,pattern=^https:\/\/app\.bilibili\.com\/bilibil
 antidad_bili_9=type=http-response,pattern=^https://app\.bilibili\.com/bilibili\.app\.dynamic\.v2\.Dynamic/DynAll$,requires-body=1,script-path=https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/js/bilibili_dynamic.js
 
 # --------------------------------------------------------------------------
-# ⑥ 微信公众号去广告 · 脚本（内联）
+# ⑤ 微信公众号去广告 · 脚本（内联）
 #     内联 1 条 / 232 字节（不远程引用，规避上游重组目录导致的静默失效）
 #     来源 https://github.com/deezertidal/shadowrocket-rules
 #     ⚠️ 单条脚本，只处理 mp/getappmsgad（文章底部广告），流量极小。脚本作者 Choler & 
@@ -163,5 +156,4 @@ hostname = %APPEND% acs.m.taobao.com,m*.amap.com,newclient.map.baidu.com,api.m.j
 # --------------------------------------------------------------------------
 # · ⚠️ 未开「HTTPS 解密」+ 未信任根证书时，[URL Rewrite] 与 URL-REGEX 规则**静默不生效**（小火箭不报错）。
 # · 解密范围见上方 [MITM]。长期不用请直接卸载本模块，避免白付解密开销。
-# · 规则集走 jsDelivr：raw.githubusercontent.com 在本机实测间歇性不通。
-#   jsDelivr 的 @分支 引用约有 12 小时缓存延迟，规则集不需要实时，可接受。
+# · 本模块**不含域名级规则**（也没有白名单）—— 域名级拦截请装「反广告 · 整合版」。

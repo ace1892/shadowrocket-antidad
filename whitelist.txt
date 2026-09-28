@@ -3,6 +3,11 @@
 # 作用：build.py 会把本文件里生效的行，生成为模块 [Rule] 段的**最前面**部分。
 #       规则自上而下、命中即停，所以放行必须排在所有 REJECT 之前才会生效。
 #
+# ⚠️ 只注入「含域名级黑名单」的档位：antidad-full / antidad-lite / antidad-strict。
+#    URL 级档位（antidad-rewrite / antidad-splash / antidad-zhihu）没有任何域名级
+#    REJECT，白名单在那里没有放行对象 —— 注进去只会让两个模块出现逐字重复的同样
+#    3 行。这条由 scripts/audit_layers.py 强制断言。
+#
 # 生效后要做什么：把本文件改动 push 回仓库 → GitHub Actions 自动重建 modules/*.module。
 #                 也可以直接在 GitHub 网页上编辑本文件，效果一样。
 #
