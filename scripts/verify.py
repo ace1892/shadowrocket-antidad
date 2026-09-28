@@ -87,6 +87,28 @@ def check_script_urls(urls):
     return bad
 
 
+def check_vendored(entries):
+    """校验自持副本（sources.json 的 vendored 字段）在仓库里且指纹未变。
+
+    自持副本是「静默死亡」的终极解法 —— 但它一旦被人误删、误改，
+    规则会以同样的方式失效，而且不会再有任何上游信号可依赖。
+    所以这里盯的是自己：文件在不在、字节数与登记值是否一致。
+    """
+    bad = []
+    for v in entries:
+        path = ROOT / v["file"]
+        if not path.exists():
+            bad.append(f"{v['file']} 不存在（自持副本被删除 → 对应 script-path 会 404）")
+            continue
+        raw = path.read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()[:16]
+        if len(raw) != v.get("file_bytes"):
+            bad.append(f"{v['file']} 字节 {v.get('file_bytes'):,} → {len(raw):,}")
+        if digest != v.get("file_sha256_16"):
+            bad.append(f"{v['file']} sha256 {v.get('file_sha256_16')} → {digest}")
+    return bad
+
+
 def main() -> int:
     quiet = "--quiet" in sys.argv
     update = "--update-baseline" in sys.argv
@@ -114,6 +136,9 @@ def main() -> int:
             for msg in check_script_urls(src.get("script_urls", [])):
                 problems.append(f"{src['id']}: script-path 不可达 — {msg}")
                 print(f"{'BAD':<6}{'-':>9}{'-':>11}  script-path 不可达  {msg}")
+            for msg in check_vendored(src.get("vendored", [])):
+                problems.append(f"{src['id']}: 自持副本异常 — {msg}")
+                print(f"{'BAD':<6}{'-':>9}{'-':>11}  自持副本异常  {msg}")
             continue
         try:
             status, raw = fetch(src["url"])

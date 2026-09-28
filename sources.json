@@ -216,12 +216,13 @@
       "vendored": [
         {
           "file": "js/bilibili_json.js",
-          "bytes": 33103,
           "body_sha256_16": "58204c801634dd00",
           "upstream": "https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js",
           "upstream_state": "已失效（上游清空 js-backup/ 且重写历史，fork 与提交历史均无）",
           "author": "Cuttlefish · 公众号「墨鱼手记」 · 版本 (74) · 2022-11-08",
-          "vendored_at": "2026-09-28"
+          "vendored_at": "2026-09-28",
+          "file_bytes": 33103,
+          "file_sha256_16": "c1650951ca9ca7c4"
         }
       ]
     },
