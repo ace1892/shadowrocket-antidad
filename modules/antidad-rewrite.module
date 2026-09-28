@@ -5,7 +5,7 @@
 
 [Rule]
 # ==========================================================================
-# 本文件由 scripts/build.py 生成于 2026-09-23 12:29 (UTC+8)
+# 本文件由 scripts/build.py 生成于 2026-09-28 10:16 (UTC+8)
 # 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
 # 源基线日期：2026-09-21
 # 生效白名单：3 条（来自 whitelist.txt）
@@ -105,29 +105,31 @@ USER-AGENT,AVOS*,REJECT
 
 # --------------------------------------------------------------------------
 # ⑤ 哔哩哔哩 去广告 · 脚本（内联）
-#     内联 9 条 / 2,352 字节（不远程引用，规避上游重组目录导致的静默失效）
+#     内联 9 条 / 2,261 字节（不远程引用，规避上游重组目录导致的静默失效）
 #     来源 https://github.com/deezertidal/shadowrocket-rules
 #     ⚠️ 全部为 requires-body=1（需读完整响应体）—— 这是全配置最耗电的一项：
 #     「推荐流去广告」每次下拉刷新都要等整个 feed JSON 下载完才能跑 JS。
 #     同样**只保留去广告**：已剔除 4K 画质解锁 / 去除统一设置皮肤 / 标签页处理 / 
 #     我的页面处理 / 繁体 CC 字幕转换，共 5 条非去广告脚本；「屏蔽IP请求」属隐私不属去广告，
-#     也一并剔除。script-path 指向上游 JS 文件（无法内联，体积 27~107 KB），属「远程引用」，
-#     上游删文件会静默失效 —— verify.py 会盯这三个地址。
+#     也一并剔除。**bilibili_json.js 已改为自持副本**（`js/bilibili_json.js`）—— 原上游 
+#     deezertidal/private 于 2026-09-24 前后清空了整个 js-backup/ 目录且重写 git 历史，导致 
+#     7 条规则静默失效并让每日校验连续失败；改指自家仓库后此风险永久消除。
+#     另两条脚本（app2smile / yjqiang）仍是远程引用，由 verify.py 盯活。
 # --------------------------------------------------------------------------
 # 观影页面去广告
-antidad_bili_1=type=http-response,pattern=^https?:\/\/api\.(bilibili|biliapi)\.(com|net)\/pgc\/page\/cinema\/tab\?,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+antidad_bili_1=type=http-response,pattern=^https?:\/\/api\.(bilibili|biliapi)\.(com|net)\/pgc\/page\/cinema\/tab\?,requires-body=1,script-path=https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/js/bilibili_json.js
 # 应用开屏广告预加载
-antidad_bili_2=type=http-response,pattern=^https:\/\/app\.bilibili\.com\/x\/v2\/splash\/list,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+antidad_bili_2=type=http-response,pattern=^https:\/\/app\.bilibili\.com\/x\/v2\/splash\/list,requires-body=1,script-path=https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/js/bilibili_json.js
 # 搜索页热搜 / 发现（推广）
-antidad_bili_3=type=http-response,pattern=^https://app.bilibili.com/x/v2/search/square,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+antidad_bili_3=type=http-response,pattern=^https://app.bilibili.com/x/v2/search/square,requires-body=1,script-path=https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/js/bilibili_json.js
 # 推荐流去广告
-antidad_bili_4=type=http-response,pattern=^https?:\/\/app\.bilibili\.com\/x\/v2\/feed\/index,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+antidad_bili_4=type=http-response,pattern=^https?:\/\/app\.bilibili\.com\/x\/v2\/feed\/index,requires-body=1,script-path=https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/js/bilibili_json.js
 # 追番页去广告
-antidad_bili_5=type=http-response,pattern=^https?:\/\/api\.(bilibili|biliapi)\.(com|net)\/pgc\/page\/bangumi,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+antidad_bili_5=type=http-response,pattern=^https?:\/\/api\.(bilibili|biliapi)\.(com|net)\/pgc\/page\/bangumi,requires-body=1,script-path=https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/js/bilibili_json.js
 # 直播去广告
-antidad_bili_6=type=http-response,pattern=^https?:\/\/api\.live\.bilibili\.com\/xlive\/app-room\/v1\/index\/getInfoByRoom,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+antidad_bili_6=type=http-response,pattern=^https?:\/\/api\.live\.bilibili\.com\/xlive\/app-room\/v1\/index\/getInfoByRoom,requires-body=1,script-path=https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/js/bilibili_json.js
 # 动态去广告
-antidad_bili_7=type=http-response,pattern=^https?:\/\/api\.vc\.bilibili\.com\/dynamic_svr\/v1\/dynamic_svr\/dynamic_(history|new)\?,requires-body=1,script-path=https://raw.githubusercontent.com/deezertidal/private/master/js-backup/Script/bilibili_json.js
+antidad_bili_7=type=http-response,pattern=^https?:\/\/api\.vc\.bilibili\.com\/dynamic_svr\/v1\/dynamic_svr\/dynamic_(history|new)\?,requires-body=1,script-path=https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/js/bilibili_json.js
 # 视频页 / 动态页 Proto 去广告（app2smile）
 antidad_bili_8=type=http-response,pattern=^https:\/\/app\.bilibili\.com\/bilibili\.app\.(view\.v1\.View\/View|dynamic\.v2\.Dynamic\/DynAll)$,requires-body=1,script-path=https://raw.githubusercontent.com/app2smile/rules/master/js/bilibili-proto.js
 # 动态广告（yjqiang）
