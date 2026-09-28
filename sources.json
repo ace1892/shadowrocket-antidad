@@ -13,7 +13,7 @@
         "bytes": 2029121,
         "sha256_16": "79f745604b082944"
       },
-      "note": "纯域名列表（带前导点）。与 blackmatrix7 域名集重合仅 1,926 条 —— 两者互补性极强，这是本项目做双源合并的核心理由。"
+      "note": "纯域名列表（带前导点）。2026-09-28 复测：与 blackmatrix7 域名集的交集是 **91,590 条**（anti-AD 的 89.7% 本就在 bm7 里 —— bm7 是聚合型列表，anti-AD 本就是它的上游之一），两源去重后共 **295,994 条**，anti-AD 净贡献 10,524 条独有域名。量不大，但引用成本为零（DOMAIN-SET 一条、不需要 MITM），故保留双源。⚠️ 此前本字段写的『重合仅 1,926 条』是错的 —— 用两源相加当并集推出来的，已订正（见 README 第 22 条坑）。"
     },
     {
       "id": "bm-domain",
@@ -122,19 +122,19 @@
         "bytes": 803,
         "sha256_16": ""
       },
-      "mitm": "acs.m.taobao.com,m*.amap.com,newclient.map.baidu.com,api.m.jd.com,bdsp-x.jd.com,dsp-x.jd.com,wmapi.meituan.com,api.pinduoduo.com,api.yangkeduo.com,www.xiaohongshu.com",
+      "mitm": "acs.m.taobao.com,m*.amap.com,newclient.map.baidu.com,api.m.jd.com,bdsp-x.jd.com,wmapi.meituan.com,api.pinduoduo.com,api.yangkeduo.com,www.xiaohongshu.com",
       "rules": [
         "^https?:\\/\\/acs\\.m\\.taobao\\.com\\/gw\\/mtop\\.taobao\\.idle\\.home\\.welcome\\/ - reject",
         "^https?:\\/\\/m\\d\\.amap\\.com\\/ws\\/valueadded\\/alimama\\/splash_screen\\/ - reject",
         "^https?:\\/\\/newclient\\.map\\.baidu\\.com\\/client\\/phpui2\\/\\?qt=ads - reject",
         "^https?:\\/\\/api\\.m\\.jd\\.com\\/client\\.action\\?functionId=start - reject",
         "^https?:\\/\\/api\\.m\\.jd\\.com\\/client\\.action\\?functionId=queryMaterialAdverts - reject",
-        "^https?:\\/\\/(bdsp-x|dsp-x)\\.jd\\.com\\/adx\\/ - reject",
+        "^https?:\\/\\/bdsp-x\\.jd\\.com\\/adx\\/ - reject",
         "^https?:\\/\\/wmapi\\.meituan\\.com\\/api\\/v\\d\\/startpicture - reject",
         "^https?:\\/\\/api\\.(pinduoduo|yangkeduo)\\.com\\/api\\/cappuccino\\/splash - reject",
         "^https?:\\/\\/www\\.xiaohongshu\\.com\\/api\\/sns\\/v\\d\\/system_service\\/splash_config - reject"
       ],
-      "note": "⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。规则取自 NoAd 中 **7 个常用 App** 的开屏接口（闲鱼 / 高德地图 / 百度地图 / 京东 / 美团 / 拼多多 / 小红书），并**剔除 NoAd 全部图片 CDN 域** —— NoAd 原档声明的 img*.360buyimg.com、p*.meituan.net、*.tv.sohu.com 等会让商品图与视频流量全部解密，是「只开一个 NoAd 就明显发热」的主因。剔除后解密目标由 153 降到 10。注：**淘宝本身在 NoAd 里没有开屏规则**（acs.m.taobao.com 那 3 条分别是闲鱼、飞猪、淘票票，不是淘宝 App），故未覆盖；同域名的 acs.m.taobao.com 一旦声明 MITM 即整域解密，无法只针对闲鱼，需权衡。"
+      "note": "⚠️ 本源是 URL 重写（section=URL Rewrite），必须开 HTTPS 解密才生效。规则取自 NoAd 中 **7 个常用 App** 的开屏接口（闲鱼 / 高德地图 / 百度地图 / 京东 / 美团 / 拼多多 / 小红书），并**剔除 NoAd 全部图片 CDN 域** —— NoAd 原档声明的 img*.360buyimg.com、p*.meituan.net、*.tv.sohu.com 等会让商品图与视频流量全部解密，是「只开一个 NoAd 就明显发热」的主因。剔除后解密目标由 153 降到 9。⚠️ 京东那条原是 `(bdsp-x|dsp-x)\\.jd\\.com`，2026-09-28 已砍掉 dsp-x —— `.dsp-x.jd.com` 本就躺在 anti-AD 域名名单里（域名级模块整域 REJECT），URL 规则拿不到这条请求，属于死代码；留着只会白白多解密一个域。同行的 bdsp-x 两处名单都没有，是真靠 URL 规则在拦，保留。注：**淘宝本身在 NoAd 里没有开屏规则**（acs.m.taobao.com 那 3 条分别是闲鱼、飞猪、淘票票，不是淘宝 App），故未覆盖；同域名的 acs.m.taobao.com 一旦声明 MITM 即整域解密，无法只针对闲鱼，需权衡。"
     },
     {
       "id": "bili-rewrite",

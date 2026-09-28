@@ -6,13 +6,13 @@
 
 另附一个 **URL 级整合档**（需要开 HTTPS 解密，不打算开就别装）：
 
-- `antidad-rewrite.module` —— ★ **所有 URL 级去广告一个模块搞定**：App 开屏 + 知乎 + B站 + 微信公众号，**26 个解密目标、0 个 CDN**。见第七节。
+- `antidad-rewrite.module` —— ★ **所有 URL 级去广告一个模块搞定**：App 开屏 + 知乎 + B站 + 微信公众号，**25 个解密目标、0 个 CDN**。见第七节。
 
 **日常只需要两个模块**：
 
 ```
-antidad-full.module      域名级 · 38 万条域名 · 0 解密
-antidad-rewrite.module   URL 级 · 全部 App 内去广告 · 26 解密
+antidad-full.module      域名级 · 29.6 万条域名 · 0 解密
+antidad-rewrite.module   URL 级 · 全部 App 内去广告 · 25 解密
 ```
 
 ---
@@ -40,14 +40,22 @@ antidad-rewrite.module   URL 级 · 全部 App 内去广告 · 26 解密
 
 | 类 | 档位 | 模块文件 | 内容 | 解密目标 | 适用 |
 |---|---|---|---|---|---|
-| 域名级 | **整合版**（推荐） | `antidad-full.module` | anti-AD + blackmatrix7 域名集 + 关键词/IP，约 38 万域名 | **0** | 默认选择。双源互补，覆盖最广 |
+| 域名级 | **整合版**（推荐） | `antidad-full.module` | anti-AD + blackmatrix7 域名集 + 关键词/IP，去重后约 29.6 万域名 | **0** | 默认选择。双源互补，覆盖最广 |
 | 域名级 | 轻量版 | `antidad-lite.module` | blackmatrix7 AdvertisingLite ×2，约 3.8 万 | **0** | 省流量、少误杀 |
 | 域名级 | 严格版 | `antidad-strict.module` | 整合版 + LOWERTOP AntiAD | **0** | ⚠️ 额外拦遥测/推送域，**会误杀**，见第五节 |
-| URL 级 | **重写整合**（推荐） | `antidad-rewrite.module` | App开屏 + 知乎 + B站 + 微信公众号，**全部内联** | **26** | ⭐ 主力。所有 URL 级去广告只装这一个 |
-| URL 级 | 开屏（子集） | `antidad-splash.module` | 仅 `antidad-rewrite` 里的 App 开屏部分 | 10 | 只要开屏、不碰 B站脚本 |
+| URL 级 | **重写整合**（推荐） | `antidad-rewrite.module` | App开屏 + 知乎 + B站 + 微信公众号，**全部内联** | **25** | ⭐ 主力。所有 URL 级去广告只装这一个 |
+| URL 级 | 开屏（子集） | `antidad-splash.module` | 仅 `antidad-rewrite` 里的 App 开屏部分 | 9 | 只要开屏、不碰 B站脚本 |
 | URL 级 | 知乎（子集） | `antidad-zhihu.module` | 仅 `antidad-rewrite` 里的知乎部分 | 7 | 只想去知乎广告、解密面要最小 |
 
-**为什么整合版要做双源**：anti-AD 与 blackmatrix7 域名集的交集只有 **1,926 条**，两边加起来去重后是 **382,242 条**。也就是说这两份名单几乎不重合 —— 只装一份会漏掉一大半。
+**为什么整合版要做双源**（2026-09-28 复测）：anti-AD 102,114 条、blackmatrix7 域名集 285,470 条，
+**两者去重后是 295,994 条**。即 anti-AD 的 89.7%（91,590 条）本来就在 blackmatrix7 里，
+反过来说 blackmatrix7 只能覆盖 anti-AD 的九成 —— 它是聚合型列表，anti-AD 本就是它的上游之一。
+anti-AD 单独贡献 **10,524 条**独有域名。量不大，**但引用成本是零**（`DOMAIN-SET` 一条、不必开 MITM），
+所以保留双源。
+
+> ⚠️ 本段此前写的是「交集只有 1,926 条、去重后 382,242 条」——**错的**。
+> 那个数把两个有交集的源**直接相加当并集**算，得出的交集自然是假的。实测交集 91,590 条。
+> 教训见第 22 条坑。
 
 **三个域名级档位是纯 REJECT，不含 URL 重写和脚本，不需要开启 MITM、不用装证书。**
 
@@ -150,7 +158,7 @@ https://www.zhihu.com/commercial_api/banners_v3/mobile_banner
 https://api.zhihu.com/brand/question/123/card?...       ← 品牌卡片
 ```
 
-HTTPS 把请求切成「域名 + 加密路径」两段，**域名级规则只看得到域名那一段**，所以 `antidad-full.module` 里那 38 万条域名规则在原理上就拦不到它们。要拦只能解密后按路径匹配 —— 这就是这一档存在的原因。
+HTTPS 把请求切成「域名 + 加密路径」两段，**域名级规则只看得到域名那一段**，所以 `antidad-full.module` 里那 29.6 万条域名规则在原理上就拦不到它们。要拦只能解密后按路径匹配 —— 这就是这一档存在的原因。
 
 顺带说明：自建库的域名集里含 "zhihu" 的只有 4 条，且**全是误匹配**（`.bozhihua.com`、`.sibozhihui-lc.com`、`.zhihu.xmcimg.com`、`.zhihuiduijian.com`），一条都不管用。
 
@@ -216,11 +224,11 @@ hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.22
 **为什么要合并**：装三个模块时，解密面是三者之和，而且**你看不见它**。
 合成一个模块后，`[MITM]` 是一份可审计的名单，`check_mitm.py` 也能一次校验到位。
 
-### 解密目标 26 个
+### 解密目标 25 个
 
 ```
-App开屏(10)  acs.m.taobao.com  m*.amap.com  newclient.map.baidu.com
-             api.m.jd.com  bdsp-x.jd.com  dsp-x.jd.com  wmapi.meituan.com
+App开屏(9)   acs.m.taobao.com  m*.amap.com  newclient.map.baidu.com
+             api.m.jd.com  bdsp-x.jd.com  wmapi.meituan.com
              api.pinduoduo.com  api.yangkeduo.com  www.xiaohongshu.com
 
 B站(8)       app.bilibili.com  api.bilibili.com  api.biliapi.net  api.biliapi.com
@@ -259,7 +267,7 @@ B站(8)       app.bilibili.com  api.bilibili.com  api.biliapi.net  api.biliapi.c
 
 | 项 | NoAd | 本模块 |
 |---|---|---|
-| 解密目标 | 153 | **26** |
+| 解密目标 | 153 | **25** |
 | 其中高流量 CDN | 6+ 个通配符 | **0** |
 | 开屏广告 | 拦 | 拦（7 个 App） |
 | 知乎 / B站 / 公众号 | 部分 | 拦 |
@@ -274,7 +282,7 @@ B站(8)       app.bilibili.com  api.bilibili.com  api.biliapi.net  api.biliapi.c
 | 闲鱼 | `acs.m.taobao.com` → `mtop.taobao.idle.home.welcome` |
 | 高德地图 | `m\d.amap.com` → `valueadded/alimama/splash_screen` |
 | 百度地图 | `newclient.map.baidu.com` → `phpui2/?qt=ads` |
-| 京东 | `api.m.jd.com`（`functionId=start` / `queryMaterialAdverts`）+ `(bdsp-x\|dsp-x).jd.com/adx/` |
+| 京东 | `api.m.jd.com`（`functionId=start` / `queryMaterialAdverts`）+ `bdsp-x.jd.com/adx/` |
 | 美团 | `wmapi.meituan.com/api/v\d/startpicture` |
 | 拼多多 | `api.(pinduoduo\|yangkeduo).com/api/cappuccino/splash` |
 | 小红书 | `www.xiaohongshu.com/api/sns/v\d/system_service/splash_config` |
@@ -428,7 +436,7 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
 9. **开了 MITM 就必须同时开「HTTPS 解密」并信任根证书**，缺一不可（iOS 还要在「关于本机 → 证书信任设置」手动打开）。三项里缺任何一项，`URL-REGEX` 规则都静默失效。
 10. **不要把证书固定的域名放进 `[MITM]`**（银行、支付、证券类）。解密失败会让那些 App **直接连不上网**，比不拦广告糟得多。
 11. **`^https?://...` 形态的规则属于 `[URL Rewrite]` 段**，写进 `[Rule]` 段是非法语法（小火箭不会报错，只是不生效）。本仓库用 `sources.json` 的 `section` 字段区分，渲染时自动落到正确的段。
-12. **`[MITM]` 漏声明 = 规则静默失效**。规则里出现 `\d`、`\w`、`(a|b)` 交替写法时，肉眼核对极易漏（例如 `m\d\.amap\.com` 必须在 `[MITM]` 写 `m*.amap.com`，`(bdsp-x|dsp-x)\.jd\.com` 必须展开成两条）。用 `scripts/check_mitm.py` 自查，已接入 CI。
+12. **`[MITM]` 漏声明 = 规则静默失效**。规则里出现 `\d`、`\w`、`(a|b)` 交替写法时，肉眼核对极易漏（例如 `m\d\.amap\.com` 必须在 `[MITM]` 写 `m*.amap.com`，`api.(bilibili|biliapi).(com|net)` 必须展开成 4 条）。用 `scripts/check_mitm.py` 自查，已接入 CI。
 13. **判断第三方模块"粗放"还是"精细"，看它的 `[MITM]` 有没有 `-` 排除项**。`-` 前缀表示排除，精细的模块会主动排除高流量 CDN（如 `biliad` 的 `-*cdn*.biliapi.net`）。**没有任何 `-` 排除项的通用模块，会把图片/视频 CDN 一并解密 —— 这是"一开就发热"的主因**，不是规则条数。
 14. **MITM 只对"实际访问的域"解密**。声明了 153 个域不等于产生 153 份开销；砍掉你根本不会访问的域省不了电。省电只能靠**砍掉你频繁访问的高流量域**。
 15. **规则写错段 = 静默失效**。三种段的语法互不通用：`[Rule]` 收 `DOMAIN,` / `URL-REGEX,` / `RULE-SET,`…；`[URL Rewrite]` 收 `^正则 target`；`[Script]` 收 `名字=type=...,pattern=...,script-path=...`。把 URL 重写规则塞进 `[Rule]`，小火箭**不报错，只是整批忽略**。本仓库用 `sources.json` 的 `section` 字段路由，`build.py` 分段渲染。
@@ -456,6 +464,8 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
    - `bili_9` pattern = `bilibili.app.dynamic.v2.Dynamic/DynAll$`
 
    `DynAll` 那个接口**同时落在这两条的范围内** —— 一个请求要跑两个 100 KB 级的 protobuf 脚本，谁后 `$done` 谁生效。这是上游原始写法，本仓库**保持原样未改动**（改了等于替上游做产品决策）。真要腾开销，删掉 `sources.json` 里 `bili_9` 那一条是最省事的落点。排查同类问题时记住：**规则重叠不会报错，只会静默多解密、多跑脚本**。
+22. **别把两个有交集的源「相加」当并集**。本项目在 §二 写过「anti-AD 与 blackmatrix7 交集只有 1,926 条、去重后 382,242 条」——这是 2026-09-21 的错误算法留下的，382,242 其实就是 `102,114 + 285,470` 的近似和，**两源根本没做去重**，交集的 1,926 也是这个错误前提推出来的。2026-09-28 按域名归一化（统一 `lstrip('.')`）复测：**交集 91,590 条、并集 295,994 条**，差 47 倍。
+    两个坑叠在一起：① 没去重；② 两个列表的**前导点格式不一致**（anti-AD 全部带 `.`，blackmatrix7 域名集是带点/不带点混排，实测 269,029 : 16,441），直接按行文本比对会漏掉一半匹配。**凡是「A 与 B 互补」这类结论，必须先把两边归一化再算交集。**
 
 ---
 

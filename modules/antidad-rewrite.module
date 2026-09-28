@@ -1,11 +1,11 @@
 #!name= 反广告 · 重写整合
-#!desc= App开屏 + 知乎 + B站 + 微信公众号 去广告 · 26 个解密目标 · ⚠️ 必须开 HTTPS 解密
+#!desc= App开屏 + 知乎 + B站 + 微信公众号 去广告 · 25 个解密目标 · ⚠️ 必须开 HTTPS 解密
 #!author= ace1892 · 仓库 https://github.com/ace1892/shadowrocket-antidad
 #!icon= https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdWhite.png
 
 [Rule]
 # ==========================================================================
-# 本文件由 scripts/build.py 生成于 2026-09-28 10:56 (UTC+8)
+# 本文件由 scripts/build.py 生成于 2026-09-28 11:37 (UTC+8)
 # 不要直接改这里 —— 改 whitelist.txt 或 sources.json，然后重新构建。
 # 源基线日期：2026-09-21
 # 生效白名单：3 条（来自 whitelist.txt）
@@ -54,16 +54,20 @@ USER-AGENT,AVOS*,REJECT
 #     **7 个常用 App** 的开屏接口（闲鱼 / 高德地图 / 百度地图 / 京东 / 美团 / 拼多多 / 
 #     小红书），并**剔除 NoAd 全部图片 CDN 域** —— NoAd 原档声明的 img*.360buyimg.com、p*.
 #     meituan.net、*.tv.sohu.com 等会让商品图与视频流量全部解密，是「只开一个 NoAd 
-#     就明显发热」的主因。剔除后解密目标由 153 降到 10。注：**淘宝本身在 NoAd 
-#     里没有开屏规则**（acs.m.taobao.com 那 3 条分别是闲鱼、飞猪、淘票票，不是淘宝 App），
-#     故未覆盖；同域名的 acs.m.taobao.com 一旦声明 MITM 即整域解密，无法只针对闲鱼，需权衡。
+#     就明显发热」的主因。剔除后解密目标由 153 降到 9。⚠️ 京东那条原是 `(bdsp-x|dsp-x)\.
+#     jd\.com`，2026-09-28 已砍掉 dsp-x —— `.dsp-x.jd.com` 本就躺在 anti-AD 
+#     域名名单里（域名级模块整域 REJECT），URL 规则拿不到这条请求，属于死代码；
+#     留着只会白白多解密一个域。同行的 bdsp-x 两处名单都没有，是真靠 URL 规则在拦，保留。
+#     注：**淘宝本身在 NoAd 里没有开屏规则**（acs.m.taobao.com 那 3 条分别是闲鱼、飞猪、
+#     淘票票，不是淘宝 App），故未覆盖；同域名的 acs.m.taobao.com 一旦声明 MITM 即整域解密，
+#     无法只针对闲鱼，需权衡。
 # --------------------------------------------------------------------------
 ^https?:\/\/acs\.m\.taobao\.com\/gw\/mtop\.taobao\.idle\.home\.welcome\/ - reject
 ^https?:\/\/m\d\.amap\.com\/ws\/valueadded\/alimama\/splash_screen\/ - reject
 ^https?:\/\/newclient\.map\.baidu\.com\/client\/phpui2\/\?qt=ads - reject
 ^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=start - reject
 ^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryMaterialAdverts - reject
-^https?:\/\/(bdsp-x|dsp-x)\.jd\.com\/adx\/ - reject
+^https?:\/\/bdsp-x\.jd\.com\/adx\/ - reject
 ^https?:\/\/wmapi\.meituan\.com\/api\/v\d\/startpicture - reject
 ^https?:\/\/api\.(pinduoduo|yangkeduo)\.com\/api\/cappuccino\/splash - reject
 ^https?:\/\/www\.xiaohongshu\.com\/api\/sns\/v\d\/system_service\/splash_config - reject
@@ -152,7 +156,7 @@ antidad_wechat_1=type=http-response,pattern=^https?:\/\/mp\.weixin\.qq\.com\/mp\
 [MITM]
 # %APPEND% = 追加到现有解密列表，不覆盖其它模块（含配置里已有的声明）。
 # `-` 前缀 = 排除；已统一排在末尾（先声明、后排除）。
-hostname = %APPEND% acs.m.taobao.com,m*.amap.com,newclient.map.baidu.com,api.m.jd.com,bdsp-x.jd.com,dsp-x.jd.com,wmapi.meituan.com,api.pinduoduo.com,api.yangkeduo.com,www.xiaohongshu.com,app.bilibili.com,api.bilibili.com,api.biliapi.net,api.biliapi.com,api.bilibili.net,api.vc.bilibili.com,api.live.bilibili.com,manga.bilibili.com,api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.226,103.41.167.234,103.41.167.235,103.41.167.236,mp.weixin.qq.com,-*cdn*.biliapi.net,-*tracker*.biliapi.net
+hostname = %APPEND% acs.m.taobao.com,m*.amap.com,newclient.map.baidu.com,api.m.jd.com,bdsp-x.jd.com,wmapi.meituan.com,api.pinduoduo.com,api.yangkeduo.com,www.xiaohongshu.com,app.bilibili.com,api.bilibili.com,api.biliapi.net,api.biliapi.com,api.bilibili.net,api.vc.bilibili.com,api.live.bilibili.com,manga.bilibili.com,api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.226,103.41.167.234,103.41.167.235,103.41.167.236,mp.weixin.qq.com,-*cdn*.biliapi.net,-*tracker*.biliapi.net
 
 # --------------------------------------------------------------------------
 # 备注
