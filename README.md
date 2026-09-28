@@ -203,7 +203,7 @@ hostname = %APPEND% api.zhihu.com,www.zhihu.com,zhuanlan.zhihu.com,103.41.167.22
 
 ### 里面装了什么
 
-一个模块收齐所有 URL 级去广告，**全部内联**（不远程引用规则集，只有脚本还用上游 JS）：
+一个模块收齐所有 URL 级去广告，**规则全部内联**（不远程引用规则集），**脚本也全部自持**（收在 `js/`，不指向别人的仓库）：
 
 | 来源 | 条数 | 目标段 | 覆盖内容 |
 |---|---|---|---|
@@ -289,8 +289,9 @@ B站(8)       app.bilibili.com  api.bilibili.com  api.biliapi.net  api.biliapi.c
 
 **换句话说：不需要跟着上游更新。**
 
-**唯一的例外是 `[Script]`**：脚本 JS 有 27~107 KB，无法内联，只能 `script-path` 远程引用 ——
-上游删文件就会静默失效。`verify.py` 会每天探活这三个地址。
+**`[Script]` 也一样自持**：脚本 JS 有 27~107 KB，没法内联进模块，所以 `script-path` 本来只能指向别人的仓库 ——
+上游删文件就静默失效。现在三个 B站脚本都收进了 `js/`，`script-path` 指自家 jsDelivr，这条风险已消除。
+详见下方 [`js/` 一节](#js--为什么不直接引用别人的脚本)。
 
 ### 被剔除的东西（有意为之）
 
@@ -332,8 +333,10 @@ B站上游 `biliad.module` 里还有这些，**本模块不收**，因为它们�
 │   └── antidad-splash.module    # 重写整合的子集
 ├── whitelist.txt                # ← 改这个
 ├── sources.json                 # ← 上游登记表 + 实测基线，改这个（section 字段决定规则落到哪个段）
-├── js/                          # 自持的第三方脚本（vendored），见下方说明
-│   └── bilibili_json.js         # B站去广告脚本，正文与上游镜像逐字节一致
+├── js/                          # 自持的第三方脚本（vendored），见下方说明。⚠️ 不要删
+│   ├── bilibili_json.js         #  33 KB  B站（7 条规则）| 上游已消失，靠镜像找回
+│   ├── bilibili-proto.js        # 107 KB  B站 Proto（1 条）| app2smile/rules
+│   └── bilibili_dynamic.js      #  45 KB  B站动态（1 条）| yjqiang/surge_scripts
 ├── scripts/
 │   ├── build.py                 # 由 whitelist + sources 生成 modules
 │   ├── verify.py                # 校验上游可达性、内容漂移、以及 script-path 是否还活着
@@ -355,13 +358,28 @@ B站上游 `biliad.module` 里还有这些，**本模块不收**，因为它们�
 而且**仓库历史被重写过** —— 73 个 fork 和提交历史里都找不回该文件，
 7 条 B站脚本规则全部静默失效，`verify-sources` 连续 4 天失败。
 
-处理方式：把脚本**收进本仓库**（`js/bilibili_json.js`），`script-path` 改指自家链接。
-上游之后再怎么变都与本仓库无关。出处、作者、镜像 sha256 都写在文件头的注释块里。
+**三个脚本全部已自持**，`script-path` 一律指自家 jsDelivr：
+
+| 文件 | 上游 | 最后改动 | 说明 |
+|---|---|---|---|
+| `js/bilibili_json.js` | `deezertidal/private` | 2022-11-08 | 上游已整目录清空 + 重写历史，靠 GitHub 代码搜索从镜像找回（5 个内容一致的副本）|
+| `js/bilibili-proto.js` | `app2smile/rules`（MIT）| 2024-11-02 | 文件近 2 年未变，仓库仍活跃 |
+| `js/bilibili_dynamic.js` | `yjqiang/surge_scripts`（未声明许可证）| 2023-10-02 | ⚠️ 上游近 3 年未更新，B站改接口时它会先失效 |
 
 **收进来的脚本不需要跟随上游更新** —— 除非 B 站改了对应接口，否则无需改动。
+来源、作者、commit、镜像 sha256 都写在文件头的注释块里，`sources.json` 的 `vendored`
+字段另外登记了 `file_bytes` / `file_sha256_16`，由 `verify.py` 的 `check_vendored()` 校验。
 
-其余两个脚本（`app2smile/rules` 的 `bilibili-proto.js`、`yjqiang/surge_scripts` 的
-`bilibili_dynamic.js`）目前仍是远程引用，`verify.py` 每天盯活，失效会开 issue。
+⚠️ **`js/` 里的文件不要删、不要改**。自持副本是「静默死亡」的终极解法，但它一旦被误删，
+规则会以完全相同的方式失效 —— 而且**不会再有任何上游信号可依赖**。所以校验逻辑盯的是自己。
+
+安全体检（2026-09-28，三个脚本逐项过）：无 `eval` / `new Function` / 远程代码加载；
+不读取任何凭据（无 keychain / cookie / token 访问）；无对外网络请求。
+`bilibili-proto.js` 里唯一一处 `require()` 位于 text-decoder polyfill 内、被
+`typeof module && module.exports` 守卫 —— 小火箭运行时没有 `module` 对象，该分支不会执行。
+
+剩下的远程依赖只有规则集（anti-AD / blackmatrix7 的 `DOMAIN-SET`、`RULE-SET`）和
+微信公众号那一条脚本（`NobyDa/Script` 的 `Wechat.js`），`verify.py` 每天盯活。
 
 本地运行（只用标准库，不需要装依赖）：
 
@@ -421,7 +439,7 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
    1. `GET /repos/<o>/<r>/commits?path=<路径>` —— 有历史就能用 `raw/<sha>/<路径>` 取回
    2. 遍历 fork（`/repos/<o>/<r>/forks?per_page=100`）逐个试 raw —— fork 停在删除之前的话还在
    3. **GitHub 代码搜索按文件名找镜像**：`filename:bilibili_json.js`。同名镜像往往有几十个，比内容 sha256 取**多数派**（本次 56 个结果里 5 个完全一致）
-   4. 长期方案：**收进本仓库**（`js/`），不再依赖别人
+   4. 长期方案：**收进本仓库**（`js/`），不再依赖别人 —— 本项目三个脚本**已全部落地**，见 [`js/` 一节](#js--为什么不直接引用别人的脚本)
 20. **校验脚本的退出码会连带打断「告警步骤」**。`verify.yml` 里这一步踩了坑：
    ```yaml
    - name: 写 STATUS.md
@@ -433,6 +451,11 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
        } > STATUS.md                   # ← 整个块的退出码 = 最后一条命令的退出码 → 本步 FAIL
    ```
    结果：`写 STATUS.md` 打挂 → 后面「提交 STATUS.md」「异常时开 issue」**全部被跳过** → 4 天里一个 issue 都没建出来。正确写法是 `python3 scripts/verify.py || true`，异常与否交给 `continue-on-error` 的 `outcome` 判定，并在**最后**单独加一步 `exit 1` 来触发失败通知。
+21. **同一个请求可以命中两条 `[Script]` 规则，而且谁都没报错**。上游 `biliad.module` 里：
+   - `bili_8` pattern = `bilibili.app.(view.v1.View/View|dynamic.v2.Dynamic/DynAll)$`
+   - `bili_9` pattern = `bilibili.app.dynamic.v2.Dynamic/DynAll$`
+
+   `DynAll` 那个接口**同时落在这两条的范围内** —— 一个请求要跑两个 100 KB 级的 protobuf 脚本，谁后 `$done` 谁生效。这是上游原始写法，本仓库**保持原样未改动**（改了等于替上游做产品决策）。真要腾开销，删掉 `sources.json` 里 `bili_9` 那一条是最省事的落点。排查同类问题时记住：**规则重叠不会报错，只会静默多解密、多跑脚本**。
 
 ---
 
