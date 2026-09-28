@@ -332,6 +332,8 @@ B站上游 `biliad.module` 里还有这些，**本模块不收**，因为它们�
 │   └── antidad-splash.module    # 重写整合的子集
 ├── whitelist.txt                # ← 改这个
 ├── sources.json                 # ← 上游登记表 + 实测基线，改这个（section 字段决定规则落到哪个段）
+├── js/                          # 自持的第三方脚本（vendored），见下方说明
+│   └── bilibili_json.js         # B站去广告脚本，正文与上游镜像逐字节一致
 ├── scripts/
 │   ├── build.py                 # 由 whitelist + sources 生成 modules
 │   ├── verify.py                # 校验上游可达性、内容漂移、以及 script-path 是否还活着
@@ -341,6 +343,25 @@ B站上游 `biliad.module` 里还有这些，**本模块不收**，因为它们�
     ├── build.yml                # 改动 whitelist/sources/scripts 时自动重建 + 校验 MITM 覆盖
     └── verify.yml               # 每天 09:00(UTC+8) 校验上游，异常开 issue
 ```
+
+### `js/` —— 为什么不直接引用别人的脚本
+
+`[Script]` 规则里的 `script-path` 只能指向一个 URL，**脚本没法内联进模块**。所以每个脚本都是一个外部依赖：
+
+> 上游删掉文件 → 模块还在、解密照做、**脚本不跑** → 广告悄悄回来，你不会收到任何报错。
+
+这件事在 2026-09-24 真实发生过：`biliad.module` 引用的
+`deezertidal/private/js-backup/Script/bilibili_json.js` 被上游连目录一起清空，
+而且**仓库历史被重写过** —— 73 个 fork 和提交历史里都找不回该文件，
+7 条 B站脚本规则全部静默失效，`verify-sources` 连续 4 天失败。
+
+处理方式：把脚本**收进本仓库**（`js/bilibili_json.js`），`script-path` 改指自家链接。
+上游之后再怎么变都与本仓库无关。出处、作者、镜像 sha256 都写在文件头的注释块里。
+
+**收进来的脚本不需要跟随上游更新** —— 除非 B 站改了对应接口，否则无需改动。
+
+其余两个脚本（`app2smile/rules` 的 `bilibili-proto.js`、`yjqiang/surge_scripts` 的
+`bilibili_dynamic.js`）目前仍是远程引用，`verify.py` 每天盯活，失效会开 issue。
 
 本地运行（只用标准库，不需要装依赖）：
 
@@ -396,6 +417,22 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
 16. **`[Script]` 的 `pattern=` 也要 `[MITM]` 覆盖**，漏了同样静默失效 —— 而且更隐蔽：脚本不跑，你不会看到任何报错，只会觉得"广告怎么又回来了"。`check_mitm.py` 已把 `[Script]` 段纳入检查。
 17. **正则里的 `(a|b)` 交替在 `[MITM]` 里要展开**。上游 `biliad` 的规则写 `api.(bilibili|biliapi).(com|net)`，展开是 **4 个组合**，但它的 `[MITM]` **只声明了 2 个** —— 另 2 条分支静默失效。本仓库补齐为 4 个（声明天生不会被访问的域，成本为零）。
 18. **`[MITM]` 里的 `-` 排除项要排在末尾**。hostname 是「先声明、后排除」，顺序反了排除可能不生效。`build.py` 的 `collect_mitm()` 会自动把 `-` 项统一挪到最后。
+19. **`script-path` 是最脆弱的一环 —— 上游删文件是「静默死亡」**。规则在、模块在、解密照做，只有脚本不跑了，你不会看到任何报错。更麻烦的是：**上游可能连 git 历史一起重写**，这时 fork 和提交历史都取不回文件（2026-09-24 实测，73 个 fork 全查过，无一留存）。补救按这个顺序：
+   1. `GET /repos/<o>/<r>/commits?path=<路径>` —— 有历史就能用 `raw/<sha>/<路径>` 取回
+   2. 遍历 fork（`/repos/<o>/<r>/forks?per_page=100`）逐个试 raw —— fork 停在删除之前的话还在
+   3. **GitHub 代码搜索按文件名找镜像**：`filename:bilibili_json.js`。同名镜像往往有几十个，比内容 sha256 取**多数派**（本次 56 个结果里 5 个完全一致）
+   4. 长期方案：**收进本仓库**（`js/`），不再依赖别人
+20. **校验脚本的退出码会连带打断「告警步骤」**。`verify.yml` 里这一步踩了坑：
+   ```yaml
+   - name: 写 STATUS.md
+     run: |
+       {
+         echo '```'
+         python3 scripts/verify.py     # ← 发现异常时返回 1
+         echo '```'
+       } > STATUS.md                   # ← 整个块的退出码 = 最后一条命令的退出码 → 本步 FAIL
+   ```
+   结果：`写 STATUS.md` 打挂 → 后面「提交 STATUS.md」「异常时开 issue」**全部被跳过** → 4 天里一个 issue 都没建出来。正确写法是 `python3 scripts/verify.py || true`，异常与否交给 `continue-on-error` 的 `outcome` 判定，并在**最后**单独加一步 `exit 1` 来触发失败通知。
 
 ---
 

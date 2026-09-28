@@ -38,7 +38,10 @@ jobs:
             echo "最近一次运行：$(date -u '+%Y-%m-%d %H:%M UTC')"
             echo
             echo '```'
-            python3 scripts/verify.py
+            # `|| true` 是必须的：verify.py 发现异常时返回 1，会把本步骤直接打挂，
+            # 导致「提交 STATUS.md」「异常时开 issue」两步被跳过 —— 实测 2026-09-24~27
+            # 连续 4 天失败期间，一个 issue 都没建出来。异常与否由下一步的 outcome 判定。
+            python3 scripts/verify.py || true
             echo '```'
             echo
             echo "> 本文件由 verify-sources workflow 自动生成，不要手动编辑。"
@@ -62,10 +65,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TITLE="上游规则源校验异常"
-          BODY="$(printf '自动校验发现异常，请查看 Actions 日志。\n\n```\n%s\n```\n' "$(python3 scripts/verify.py 2>&1 | tail -20)")"
-          EXISTING="$(gh issue list --state open --search "$TITLE" --json number --jq '.[0].number' || true)"
+          BODY="$(printf '自动校验发现异常，请查看 `STATUS.md` 与 Actions 日志。\n\n```\n%s\n```\n' "$(python3 scripts/verify.py 2>&1 | tail -20)")"
+          # 用「标题精确匹配」而不是 --search 全文检索：中文标题走搜索 API 不稳定，
+          # 匹配不到就会每次新建一个重复 issue。
+          EXISTING="$(gh issue list --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title == \"$TITLE\") | .number" | head -1)"
           if [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" --body "$BODY"
+            echo "已追加到 issue #$EXISTING"
           else
             gh issue create --title "$TITLE" --body "$BODY"
           fi
+
+      - name: 异常时让本次运行失败
+        # 放在最后：STATUS.md 已提交、issue 已建，此时再标失败，
+        # 既能触发 GitHub 的失败通知，又不会让前面的告警动作被跳过。
+        if: steps.verify.outcome == 'failure'
+        run: |
+          echo "::error::上游校验发现异常，详见 STATUS.md 与 open issue"
+          exit 1
