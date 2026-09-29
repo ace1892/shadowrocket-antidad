@@ -392,7 +392,7 @@ B站上游 `biliad.module` 里还有这些，**本模块不收**，因为它们�
 │   ├── verify.py                # 校验上游可达性、内容漂移、以及 script-path / 自持副本是否还活着
 │   ├── check_mitm.py            # 校验每条 URL 级规则（含 [Script] 的 pattern）都被 [MITM] 覆盖
 │   ├── audit_layers.py          # ★ 层级断言：域名级只管域名、URL 级只管 URL、白名单不重复
-│   └── build_divert.py          # ★ 生成 dist/divert.conf（分流订阅）；5 组断言见第十二节
+│   └── build_divert.py          # ★ 生成 dist/divert.conf（分流订阅）；6 组断言见第十二节
 ├── STATUS.md                    # 自动生成的校验状态，不要手改
 └── .github/workflows/
     ├── build.yml                # 改 whitelist/sources/scripts 时重建 + 校验；另有每日定时（内联源要跟上游）
@@ -614,6 +614,8 @@ line 335  rule/QuantumultX/China/China.list    → DIRECT
 
 订阅是远程的、改不了源文件（每次更新都会覆盖回来），所以派生一份自己的。
 
+后来这份自建订阅又顺手承担了第二件事：**`[General]` 的 DNS 调优** —— 见下方「改了两处」的第二点。
+
 ### 地址
 
 ```
@@ -623,7 +625,9 @@ https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/dist/divert.conf
 小火箭 →「配置」→ `➕` → 粘贴 → 下载 → 首页「全局路由」设为「配置」。
 **换过来之后要把原来那份 `lazy_group.conf` 停用**，否则两份配置会打架。
 
-### 修了什么
+### 改了两处
+
+**一、4 条写错客户端方言的 `RULE-SET`**
 
 | 上游那条 | 改成 | 生效条数 | 效果 |
 |---|---|---|---|
@@ -643,23 +647,53 @@ https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/dist/divert.conf
 - 真正独有的 **9 条**，且全是 Adobe / 测量类监控域名（`*.omtrdc.net`、`akamaized.net`、`edgekey.net`）；
 - 15 条 `HOST-WILDCARD`（如 `apple.*`、`imac.*`）小火箭版无对应写法，上游直接丢弃，大多也被后缀规则覆盖。
 
+**二、`[General]` 里的 `dns-server`（2026-09-29 新增）**
+
+起因是用户报「手机开着代理就明显发热」。用一份真实的 `PacketTunnel` 日志（3 分 53 秒）反算后，
+发现**模块层和 IPv6、HTTPS 解密都不是主因，DNS 才是**：
+
+| 项目 | 上游原值 | 现在 | 依据 |
+|---|---|---|---|
+| `dns-server` 上游数量 | 4 个（2 DoH + 2 UDP） | **2 个**（1 DoH + 1 UDP） | 手册 §通用参数：「DNS 覆写支持同时添加多个地址，Shadowrocket 采用**并行查询**的方式进行解析请求，最先返回的结果将被采用」。实测 **68 个逻辑查询 → 182 次请求（放大 2.68 倍）**，20 个查询同时打满 4 家 |
+| DoH 的 HTTP/3 | 自动升级 | **`#no-h3` 关闭** | 手册同段：「有些 `dns over https` 支持 `http3`，所以将会尝试查询，如果支持就切换到 `http3`，可在 doh 链接后面加上 `#no-h3` 关闭」。实测日志里 `dns over quic …#h3` 反复 `ERR_IDLE_CLOSE`，每次重连 = QUIC 握手 + TLS 握手 |
+
+上游原值以注释形式保留在 `[General]` 段里，便于回溯：
+
+```
+# 上游原值：dns-server = https://doh.pub/dns-query,https://dns.alidns.com/dns-query,223.5.5.5,119.29.29.29
+dns-server = https://doh.pub/dns-query#no-h3,223.5.5.5
+```
+
+**刻意不动的**（避免过度调参、也避免把用户没要求的策略强塞进去）：
+
+- `ipv6` —— 实测 `AAAA` 只占 DNS 请求的 **2.2%**（`prefer-ipv6 = false` 时不主动查 AAAA），
+  关它收益很小。想关在 UI 里点掉即可。
+- `fallback-dns-server` / `hijack-dns` / `block-quic` / `dns-direct-*` —— 保持上游设计意图。
+
+⚠️ 一并记下**当时的误判，免得以后重犯**：最初凭手册推断「`ipv6 = true` 导致每次解析白发 AAAA 查询」，
+把它列为耗电方向之一；实测把它推翻了。**日志能定量的事，不要靠推断下结论。**
+
 ### 怎么改
 
-`scripts/build_divert.py` 里两个开关：
+`scripts/build_divert.py` 里四个开关：
 
 | 常量 | 作用 |
 |---|---|
 | `KEEP_GLOBAL = False` | 改成 `True`，Global 那条也会被修好（多下 ~556 KB） |
 | `EXPECT_DOMAIN_LIST` | 哪个组有 `_Domain.list`。**探测结果与之冲突时报错，而不是静默少补一条** —— 这正是本次要治的病，不能让它换个地方复发 |
+| `TUNE_DNS = True` | 是否做 `[General]` 的 DNS 调优。改成 `False` 则完全不动 `[General]`，`dns-server` 保持上游原值 |
+| `DNS_SERVER_OVERRIDE` | 本档写进去的 `dns-server`。**每个 `https://` 项都必须带 `#no-h3`** —— 用 `UPSTREAM_DNS_BASELINE` 记录上游原值，上游一旦改动会告警而不是静默覆盖 |
 
-### 自检（5 组断言，任一不过即非零退出、不提交）
+### 自检（6 组断言，任一不过即非零退出、不提交）
 
 1. 生效行里 Quantumult X 引用必须为 0；
 2. `[General]` / `[Proxy Group]` / `[Rule]` 三段必须在；
 3. **`[Proxy]` 段必须为空** —— 本仓库是公开的，上游哪天把节点信息塞进来必须拦住；
 4. 生效行不得出现节点协议 scheme 或 `password=` / `uuid=` 等凭据字段
    （**只看生效行**：上游 `[Proxy]` 段的文档注释里满是 `password=密码` 这类格式说明，把注释算进去会全线误报）；
-5. 被改写的 `X.list` 必须可达；`X_Domain.list` 的存在性必须与期望表一致。
+5. 被改写的 `X.list` 必须可达；`X_Domain.list` 的存在性必须与期望表一致；
+6. `dns-server` 必须**整行等于** `DNS_SERVER_OVERRIDE`，且该常量的每个 DoH 项都带 `#no-h3`
+   （整行比对拦不到「改常量时忘了加 `#no-h3`」，所以常量本身要单独自检）。
 
 本地跑：
 

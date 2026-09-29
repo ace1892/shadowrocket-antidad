@@ -100,6 +100,39 @@ EXPECT_DOMAIN_LIST = {
 KEEP_GLOBAL = False
 
 # ------------------------------------------------------------
+# [General] 调优：DNS 上游精简 + 关掉 DoH 的 HTTP/3 自动升级
+# （2026-09-29 新增；依据手册 §通用参数 + 一份真实 PacketTunnel 日志的定量结果）
+#
+# 依据一 —— 手册 §通用参数「DNS覆写 dns-server」：
+#   「DNS 覆写支持同时添加多个地址，Shadowrocket 采用 **并行查询** 的方式进行解析请求，
+#     最先返回的结果将被采用」
+#   ⇒ 上游写了 4 个上游。实测（3 分 53 秒日志）：**68 个逻辑查询实际发出 182 次请求**
+#     （放大 2.68 倍，其中 20 个查询同时打满 4 家、1 个打了 8 家）。
+#     砍到 2 个 ≈ 直接砍掉一半的 DNS 收发与系统唤醒。
+#
+# 依据二 —— 手册同段：
+#   「有些 dns over https 支持 http3，所以将会尝试查询，如果支持就切换到 http3，
+#     可在 doh 链接后面加上 #no-h3 关闭」
+#   ⇒ 上游的 DoH 会被自动升级到 HTTP/3。实测日志里 `dns over quic …#h3` 反复
+#     `ERR_IDLE_CLOSE`（空闲断开又重建 = QUIC 握手 + TLS 握手）。加 `#no-h3` 后
+#     固定走 TCP/TLS，连接可长复用。**这是手册给的官方解法，不是偏方。**
+#
+# 刻意 **不** 动的（避免过度调参、也避免把用户没要求的策略强塞进去）：
+#   · `ipv6` —— 实测 AAAA 只占 DNS 请求的 2.2%（`prefer-ipv6 = false` 时不主动查 AAAA），
+#     关它收益很小。想关在 UI 里点掉即可（手册给的微信加载异常解法就是关它）。
+#   · `fallback-dns-server` / `hijack-dns` / `block-quic` / `dns-direct-*` —— 保持上游设计意图。
+# ------------------------------------------------------------
+TUNE_DNS = True
+
+# 本档要写进去的 dns-server：一个 DoH（防污染，关 h3）+ 一个原生 UDP（最快）
+DNS_SERVER_OVERRIDE = "https://doh.pub/dns-query#no-h3,223.5.5.5"
+
+# 上游 dns-server 的实测基线（2026-09-29 读取）。上游一旦改动会告警，
+# 而不是静默覆盖 —— 与 EXPECT_DOMAIN_LIST 同一个思路。
+UPSTREAM_DNS_BASELINE = ("https://doh.pub/dns-query,"
+                         "https://dns.alidns.com/dns-query,223.5.5.5,119.29.29.29")
+
+# ------------------------------------------------------------
 # 公开仓库红线
 # ------------------------------------------------------------
 REQUIRED_SECTIONS = ("[General]", "[Proxy Group]", "[Rule]")
@@ -256,24 +289,94 @@ def rewrite(lines, allow_probe: bool = True):
     return out, changes, warnings
 
 
-def make_header(ts: str, changes) -> str:
+def tune_general(lines):
+    """只改 [General] 段里的 `dns-server` 一行，其余参数一律原样保留。
+
+    返回 (新行列表, dns_note, warnings)。
+    dns_note 为 None 表示本次没做任何 DNS 改动（TUNE_DNS=False 或上游没这行）。
+    """
+    if not TUNE_DNS:
+        return lines, None, []
+
+    out, warnings = [], []
+    section, done, upstream_val = None, False, None
+
+    for raw in lines:
+        line = raw.rstrip("\n")
+        s = line.strip()
+
+        if s.startswith("["):
+            section = s
+            out.append(line)
+            continue
+
+        # 只在 [General] 段内动手，且精确匹配 `dns-server`（不能误伤
+        # `direct-dns-server` / `fallback-dns-server` / `proxy-dns-server`）
+        if section != "[General]" or not re.match(r"^dns-server\s*=", s):
+            out.append(line)
+            continue
+
+        upstream_val = s.split("=", 1)[1].strip()
+        if upstream_val != UPSTREAM_DNS_BASELINE:
+            warnings.append(
+                "上游 dns-server 与基线不一致（上游改过？）—— 仍按本档设定覆盖，请人工确认一次：\n"
+                f"        基线：{UPSTREAM_DNS_BASELINE}\n"
+                f"        上游：{upstream_val}")
+        out.append(f"# 上游原值：dns-server = {upstream_val}")
+        out.append("# 调优依据：手册 §通用参数「dns-server 支持多地址，采用并行查询」"
+                   "＋「doh 支持 http3 会切换，可在链接后加 #no-h3 关闭」")
+        out.append(f"dns-server = {DNS_SERVER_OVERRIDE}")
+        done = True
+
+    if not done:
+        warnings.append("上游 [General] 段里找不到 dns-server 行 —— 结构变了，"
+                        "DNS 调优未生效，请人工核对。")
+        return lines, None, warnings
+
+    note = (f"dns-server 上游 {len(upstream_val.split(','))} 个 → "
+            f"{len(DNS_SERVER_OVERRIDE.split(','))} 个（并行查询减半）"
+            f"＋关掉 DoH 的 HTTP/3 自动升级（#no-h3）")
+    return out, note, warnings
+
+
+def make_header(ts: str, changes, dns_note=None) -> str:
     detail = "\n".join(f"#     {g:8s} → {p:8s} {r}" for g, n, p, r in changes) \
              or "#     （上游已无 Quantumult X 引用）"
+
+    dns_block = ""
+    if dns_note:
+        dns_block = f"""#
+# 第二件事 —— [General] 段里的 DNS 调优：
+#   {dns_note}
+#   依据：手册 §通用参数 ——「dns-server 支持同时添加多个地址，Shadowrocket 采用
+#         并行查询的方式进行解析请求，最先返回的结果将被采用」；同段「有些
+#         dns over https 支持 http3，所以将会尝试查询，如果支持就切换到
+#         http3，可在 doh 链接后面加上 #no-h3 关闭」。
+#   实测（3 分 53 秒的真实 PacketTunnel 日志）：68 个逻辑查询实际发出 182 次
+#   请求（放大 2.68 倍，20 个查询打满 4 家）；DoH 被自动升级到 HTTP/3 后反复
+#   ERR_IDLE_CLOSE 断开重连（每次重连 = QUIC 握手 + TLS 握手）。
+#   本档把上游 4 个上游砍到 2 个，并关掉 DoH 的 h3 自动升级。
+#   上游原值保留在 [General] 段里的注释行，便于回溯。
+"""
+
+    n_things = "两" if dns_note else "一"
     return f"""# ==========================================================================
 # 自建分流订阅 · 派生自 johnshall 的 lazy_group.conf
 # 本文件由 scripts/build_divert.py {TS_MARKER} {ts} (UTC+8)
 # 不要直接改这里 —— 改 scripts/build_divert.py 然后重新构建。
 # 上游：{UPSTREAM_LABEL}
 #
-# 本档只做一件事：修掉上游 4 条「写错客户端方言」的 RULE-SET 引用。
-# 上游那 4 条指向 Quantumult X 的目录（该仓库按客户端分目录），
-# 里面写的是 Quantumult X 方言（HOST-SUFFIX / HOST-KEYWORD / HOST-WILDCARD /
-# IP6-CIDR），小火箭不识别 → 规则一条都不生效，而且**不报错、无可见症状**。
-# （该文件自己的注释第 234/235 行示范的就是小火箭目录的路径，属漏改。）
+# 本档做{n_things}件事，都针对「上游配置自身的缺陷」，不掺任何个人分流策略。
 #
-# 修正明细：
+# 第一件事 —— 修掉上游 4 条「写错客户端方言」的 RULE-SET 引用：
+#   上游那 4 条指向 Quantumult X 的目录（该仓库按客户端分目录），里面写的是
+#   Quantumult X 方言（HOST-SUFFIX / HOST-KEYWORD / HOST-WILDCARD / IP6-CIDR），
+#   小火箭不识别 → 规则一条都不生效，而且**不报错、无可见症状**。
+#   （该文件自己的注释第 234/235 行示范的就是小火箭目录的路径，属漏改。）
+#
+#   修正明细：
 {detail}
-#
+{dns_block}#
 # ⚠️ 小火箭版规则集是「拆开」的：*.list 只剩非域名部分（UA / IP-CIDR /
 #    DOMAIN-KEYWORD），域名全在 *_Domain.list，必须 RULE-SET + DOMAIN-SET
 #    两条一起用。只换路径会丢掉几千条域名，同样不报错。
@@ -332,6 +435,18 @@ def check_output(text: str, changes) -> list:
     if not changes:
         problems.append("上游已无 Quantumult X 引用 —— 本派生物可能已无存在意义，请人工确认")
 
+    # DNS 调优必须精确落地（不只是「有 dns-server 行」）
+    if TUNE_DNS:
+        want = f"dns-server = {DNS_SERVER_OVERRIDE}"
+        got = [l for l in active if l.startswith("dns-server")]
+        if got != [want]:
+            problems.append(f"dns-server 与预期不符：\n        期望 {want!r}\n        实际 {got!r}")
+        # 常量自检：每个 DoH 项都必须带 #no-h3，否则会被自动升到 HTTP/3
+        # （这条拦的是「改常量时忘了加」—— 输出的整行比对拦不到常量本身的错）
+        for item in DNS_SERVER_OVERRIDE.split(","):
+            if item.strip().startswith("https://") and "#no-h3" not in item:
+                problems.append(f"DNS_SERVER_OVERRIDE 里的 DoH 项缺 #no-h3：{item.strip()}")
+
     return problems
 
 
@@ -345,15 +460,19 @@ def main() -> int:
 
     lines = text.splitlines()
     body, changes, warnings = rewrite(lines, allow_probe=not no_probe)
+    body, dns_note, dns_warnings = tune_general(body)
+    warnings.extend(dns_warnings)
 
     ts = datetime.now(CST).strftime("%Y-%m-%d %H:%M")
-    content = make_header(ts, changes) + "\n".join(body) + "\n"
+    content = make_header(ts, changes, dns_note) + "\n".join(body) + "\n"
 
     print("\n改写明细：")
     for grp, name, policy, result in changes:
         print(f"  {grp:8s} → {policy:6s} {result}")
     if not changes:
         print("  （无）")
+    if dns_note:
+        print(f"  [General] {dns_note}")
     for w in warnings:
         print(f"  ⚠ {w}")
 
@@ -363,7 +482,8 @@ def main() -> int:
         for p in problems:
             print(f"  ✗ {p}")
         return 1
-    print("\n自检通过：QX 引用 0 条、三段完整、[Proxy] 段为空、无凭据特征。")
+    extra = "、dns-server 已按预期改写" if TUNE_DNS else ""
+    print(f"\n自检通过：QX 引用 0 条、三段完整、[Proxy] 段为空、无凭据特征{extra}。")
 
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
