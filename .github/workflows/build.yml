@@ -15,6 +15,7 @@ on:
       - 'whitelist.txt'
       - 'sources.json'
       - 'scripts/**'
+      - '.github/workflows/build.yml'   # 改工作流本身也要跑一次，否则新加的步骤永远不会被验证
   schedule:
     - cron: '30 20 * * *'    # 20:30 UTC = 04:30 UTC+8（bm7 的更新一般在 UTC 20:40 之后，留一点余量）
   workflow_dispatch:
@@ -60,3 +61,23 @@ jobs:
           git commit -m "chore: 由 build.py 重建 modules"
           git pull --rebase --autostash origin main
           git push
+
+      # 同 divert.yml：jsDelivr 对 @main 分支别名有 CDN 缓存，不会随新提交自动失效。
+      # 模块也是走 cdn.jsdelivr.net/...@main/modules/xxx.module 安装的，不 purge 就会
+      # 出现「仓库已更新、手机里还是旧模块」。放在 push 之后回源。
+      - name: 刷新 jsDelivr CDN 缓存（模块）
+        run: |
+          BASE="https://purge.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/modules"
+          FAIL=0
+          for F in antidad-full antidad-lite antidad-rewrite antidad-splash antidad-strict antidad-zhihu; do
+            OUT="$(curl -s --max-time 30 "$BASE/$F.module" || true)"
+            if echo "$OUT" | grep -q '"status": "finished"'; then
+              echo "$F.module  purge 成功"
+            else
+              echo "$F.module  purge 未确认：$OUT"
+              FAIL=1
+            fi
+          done
+          if [ "$FAIL" = "1" ]; then
+            echo "::warning::部分模块的 jsDelivr purge 未确认成功，@main 可能仍为旧内容"
+          fi

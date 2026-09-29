@@ -14,6 +14,7 @@ on:
   push:
     paths:
       - 'scripts/build_divert.py'
+      - '.github/workflows/divert.yml'   # 改工作流本身也要跑一次，否则新加的步骤永远不会被验证
   schedule:
     - cron: '45 20 * * *'    # 20:45 UTC = 04:45 UTC+8（错开 build-modules 的 20:30）
   workflow_dispatch:
@@ -56,3 +57,24 @@ jobs:
           git commit -m "chore: 由 build_divert.py 重建分流订阅"
           git pull --rebase --autostash origin main
           git push
+
+      # 必须主动 purge。jsDelivr 对 @main 这类「分支别名」有 CDN 缓存，
+      # 且实测不会随新提交自动失效 —— 2026-09-29 实锤：
+      #   提交 253374a（DNS 调优）后 @main 仍返回 01238cb 的内容，
+      #   手机端「更新订阅」拿到旧版，调优白做一次。
+      # 放在 push 之后，保证 CDN 回源时能拉到新提交。
+      # 不 fail 整个 job：配置已提交，缓存最迟 12h 后自然过期，不影响正确性。
+      - name: 刷新 jsDelivr CDN 缓存
+        run: |
+          URL="https://purge.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/dist/divert.conf"
+          for i in 1 2 3; do
+            OUT="$(curl -s --max-time 30 "$URL" || true)"
+            echo "$OUT"
+            if echo "$OUT" | grep -q '"status": "finished"'; then
+              echo "purge 成功"
+              exit 0
+            fi
+            echo "第 $i 次 purge 未确认成功，5s 后重试"
+            sleep 5
+          done
+          echo "::warning::jsDelivr purge 未确认成功，@main 可能仍为旧内容"
