@@ -1,0 +1,58 @@
+name: build-divert
+
+# 重建 dist/divert.conf —— 自建分流订阅（派生自 johnshall 的 lazy_group.conf）。
+#
+# 触发源：
+#   1. push  —— 改动 scripts/build_divert.py 之后
+#      （触发路径不含 dist/，所以不会有「提交→触发→再提交」的循环）
+#   2. 每日定时 —— 跟随上游 Johnshall/…-Forever 的更新
+#
+# 为什么单独一个 workflow，而不是塞进 build-modules：
+#   分流配置和反广告模块是两件不相干的事。上游哪天改了目录结构、导致这边的
+#   断言失败，不应该连带把每天的反广告规则更新一起停掉。
+on:
+  push:
+    paths:
+      - 'scripts/build_divert.py'
+  schedule:
+    - cron: '45 20 * * *'    # 20:45 UTC = 04:45 UTC+8（错开 build-modules 的 20:30）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# 与其它 workflow 共用仓库写权限，串行化避免 push 打架。
+concurrency:
+  group: repo-write
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # 内含 5 组断言：QX 引用归零 / 三段完整 / [Proxy] 段为空 /
+      # 无凭据特征 / 被改写的 X.list 可达且 X_Domain.list 与期望表一致。
+      # 任一不过即非零退出，不提交、不发布。
+      - name: 重建 dist/divert.conf
+        run: python3 scripts/build_divert.py
+
+      - name: 提交变化
+        run: |
+          if [ -z "$(git status --porcelain dist/)" ]; then
+            echo "dist/ 无变化，跳过提交"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/
+          git commit -m "chore: 由 build_divert.py 重建分流订阅"
+          git pull --rebase --autostash origin main
+          git push

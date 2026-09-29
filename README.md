@@ -19,6 +19,9 @@ antidad-rewrite.module   URL 级 · 全部 App 内去广告 · 25 解密 · 不�
 > URL 级模块里**只有** `URL-REGEX` / `[URL Rewrite]` / `[Script]` / `[MITM]`。
 > 两个方向都不许越界 —— 由 `scripts/audit_layers.py` 每次构建时强制断言（见第八节）。
 
+> **另附**：`dist/divert.conf` —— 一份**自建分流订阅**（派生自 johnshall 的 `lazy_group.conf`，
+> 修掉上游 4 条写错客户端方言的死规则）。它与反广告**无关**，只是同仓托管，见**第十二节**。
+
 ---
 
 ## 一、解决什么问题
@@ -376,6 +379,8 @@ B站上游 `biliad.module` 里还有这些，**本模块不收**，因为它们�
 │   ├── antidad-rewrite.module   # ★ [URL Rewrite] + [Script]，需开 HTTPS 解密
 │   ├── antidad-zhihu.module     # 重写整合的子集
 │   └── antidad-splash.module    # 重写整合的子集
+├── dist/                        # 生成产物，不要手改
+│   └── divert.conf              # ★ 自建【分流】订阅，和反广告无关，见第十二节
 ├── whitelist.txt                # ← 改这个
 ├── sources.json                 # ← 上游登记表 + 实测基线，改这个（section 字段决定规则落到哪个段）
 ├── js/                          # 自持的第三方脚本（vendored），见下方说明。⚠️ 不要删
@@ -386,10 +391,12 @@ B站上游 `biliad.module` 里还有这些，**本模块不收**，因为它们�
 │   ├── build.py                 # 由 whitelist + sources 生成 modules；带 inline_filtered 的源在构建时拉上游、剔除指定类型后内联
 │   ├── verify.py                # 校验上游可达性、内容漂移、以及 script-path / 自持副本是否还活着
 │   ├── check_mitm.py            # 校验每条 URL 级规则（含 [Script] 的 pattern）都被 [MITM] 覆盖
-│   └── audit_layers.py          # ★ 层级断言：域名级只管域名、URL 级只管 URL、白名单不重复
+│   ├── audit_layers.py          # ★ 层级断言：域名级只管域名、URL 级只管 URL、白名单不重复
+│   └── build_divert.py          # ★ 生成 dist/divert.conf（分流订阅）；5 组断言见第十二节
 ├── STATUS.md                    # 自动生成的校验状态，不要手改
 └── .github/workflows/
     ├── build.yml                # 改 whitelist/sources/scripts 时重建 + 校验；另有每日定时（内联源要跟上游）
+    ├── divert.yml               # 每日重建 dist/divert.conf（独立 workflow，见第十二节）
     └── verify.yml               # 每天 09:00(UTC+8) 校验上游，异常开 issue
 ```
 
@@ -578,4 +585,90 @@ A：实测 `raw.githubusercontent.com` 在本机**间歇性不通**（同一次�
 > 而社区里流传的 `script/zhihu/zhihu_plus.js` 路径**已被作者删除**（现为 404），
 > `deezertidal/shadowrocket-rules` 的知乎模块至今仍引用那条死链 —— 装它等于纯耗电、
 > 零收益，且小火箭不会报错。本仓库内联规则即是为了让这件事不可能再发生在本项目上。
+
+---
+
+## 十二、另附：自建分流订阅 `dist/divert.conf`
+
+> ⚠️ **这一节和反广告没有关系**，讲的是「代理分流」。放在同一个仓库只是图省事。
+
+### 为什么会有这个文件
+
+上游 `Johnshall/Shadowrocket-ADBlock-Rules-Forever` 的 `lazy_group.conf` 里有 **4 条写错客户端方言的 `RULE-SET`**：
+
+```
+line 321  rule/QuantumultX/Apple/Apple.list    → 苹果服务
+line 326  rule/QuantumultX/WeChat/WeChat.list  → DIRECT
+line 334  rule/QuantumultX/Global/Global.list  → PROXY
+line 335  rule/QuantumultX/China/China.list    → DIRECT
+```
+
+那 4 个文件里写的是 Quantumult X 方言（`HOST-SUFFIX` / `HOST-KEYWORD` / `HOST-WILDCARD` / `IP6-CIDR`），
+**小火箭不识别** → 规则一条都不生效，而且**不报错、无任何可见症状**。
+
+判断是「漏改」而不是「设计」的三条指纹：
+
+1. 同一个文件里 **35 条 `rule/Shadowrocket/...` 对 4 条 `rule/QuantumultX/...`** —— 比例悬殊；
+2. 该文件**自己的注释**（第 234/235 行）示范的路径就是 `rule/Shadowrocket/...` —— 自相矛盾；
+3. 上游 issue `Johnshall/…-Forever#206`「为什么个别分流规则是QuantumultX？」—— 维护者回「的确是这样的」。
+
+订阅是远程的、改不了源文件（每次更新都会覆盖回来），所以派生一份自己的。
+
+### 地址
+
+```
+https://cdn.jsdelivr.net/gh/ace1892/shadowrocket-antidad@main/dist/divert.conf
+```
+
+小火箭 →「配置」→ `➕` → 粘贴 → 下载 → 首页「全局路由」设为「配置」。
+**换过来之后要把原来那份 `lazy_group.conf` 停用**，否则两份配置会打架。
+
+### 修了什么
+
+| 上游那条 | 改成 | 生效条数 | 效果 |
+|---|---|---|---|
+| Apple → 苹果服务 | `Shadowrocket/Apple/Apple.list` + `Apple_Domain.list` | 1,603 | **主要收益**。`苹果服务` 分组默认出口是 `DIRECT`，原先这批流量落到 `GEOIP,CN`（只接得住中国区 CDN）再落到 `FINAL,PROXY` → 现在 App Store / iCloud / APNs 推送回直连 |
+| WeChat → DIRECT | `Shadowrocket/WeChat/WeChat.list` | 33 | 微信规则生效。该文件**已含全部域名**，无 `_Domain.list`，一条就够 |
+| China → DIRECT | `Shadowrocket/China/China.list` + `China_Domain.list` | 3,752 | 补回 `GEOIP,CN` 覆盖不到的部分（该组 63 条是 `USER-AGENT`/`IP-CIDR`，GEOIP 按 IP 推断，接不住按 App 分的规则） |
+| Global → PROXY | **删除** | — | 与文件末尾 `FINAL,PROXY` 近似等价。补回去只多下 ~556 KB（`Global.list` 6.2 KB + `Global_Domain.list` 550 KB）、多解析 35,104 条。**收益仅剩「境外域名解析到 CN IP 时不再被 GEOIP 误判直连」这一个边缘情形**，代价不成比例 |
+
+⚠️ **最容易踩的下一步坑**：小火箭版规则集是**拆开**的 —— `*.list` 只剩非域名部分
+（`USER-AGENT` / `IP-CIDR` / `DOMAIN-KEYWORD`），域名全在 `*_Domain.list`，
+**必须 `RULE-SET` + `DOMAIN-SET` 两条一起用**。只把路径从 QuantumultX 换成 Shadowrocket
+会丢掉几千条域名，而且同样不报错。脚本会探测并自动补上。
+
+**关于「小火箭版比 QX 版少 278 条」**：逐条核对过，不是能力缺失 ——
+
+- QX 版 272 条 `HOST`（精确匹配）里，**263 条已被同表 `HOST-SUFFIX` 语义覆盖**（`apps.apple.com` 之于 `.apple.com`），属重复写法；
+- 真正独有的 **9 条**，且全是 Adobe / 测量类监控域名（`*.omtrdc.net`、`akamaized.net`、`edgekey.net`）；
+- 15 条 `HOST-WILDCARD`（如 `apple.*`、`imac.*`）小火箭版无对应写法，上游直接丢弃，大多也被后缀规则覆盖。
+
+### 怎么改
+
+`scripts/build_divert.py` 里两个开关：
+
+| 常量 | 作用 |
+|---|---|
+| `KEEP_GLOBAL = False` | 改成 `True`，Global 那条也会被修好（多下 ~556 KB） |
+| `EXPECT_DOMAIN_LIST` | 哪个组有 `_Domain.list`。**探测结果与之冲突时报错，而不是静默少补一条** —— 这正是本次要治的病，不能让它换个地方复发 |
+
+### 自检（5 组断言，任一不过即非零退出、不提交）
+
+1. 生效行里 Quantumult X 引用必须为 0；
+2. `[General]` / `[Proxy Group]` / `[Rule]` 三段必须在；
+3. **`[Proxy]` 段必须为空** —— 本仓库是公开的，上游哪天把节点信息塞进来必须拦住；
+4. 生效行不得出现节点协议 scheme 或 `password=` / `uuid=` 等凭据字段
+   （**只看生效行**：上游 `[Proxy]` 段的文档注释里满是 `password=密码` 这类格式说明，把注释算进去会全线误报）；
+5. 被改写的 `X.list` 必须可达；`X_Domain.list` 的存在性必须与期望表一致。
+
+本地跑：
+
+```bash
+python3 scripts/build_divert.py            # 重建
+python3 scripts/build_divert.py --check    # 只校验是否与磁盘一致（幂等，忽略生成时间那行）
+```
+
+由 `.github/workflows/divert.yml` 每日重建。**刻意与 `build.yml` 分开**：
+分流配置和反广告模块是两件不相干的事，上游哪天改了目录结构导致这边断言失败，
+不应该连带把每天的反广告规则更新一起停掉。两者共用 `concurrency: repo-write` 串行化，不会抢写。
 
