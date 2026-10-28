@@ -1,13 +1,13 @@
 # 上游校验状态
 
-最近一次运行：2026-10-27 05:48 UTC
+最近一次运行：2026-10-28 06:26 UTC
 
 ```
-上游规则源校验 · 2026-10-27 13:48 (UTC+8)
+上游规则源校验 · 2026-10-28 14:26 (UTC+8)
 
 状态           条数         字节  名称
 OK      105,192  2,117,052  anti-AD 主列表
-OK      296,038  6,006,757  blackmatrix7 Advertising（域名集）
+OK      290,392  5,906,886  blackmatrix7 Advertising（域名集）
 OK          781     26,853  blackmatrix7 Advertising（关键词 + IP + 正则）
 OK       37,692    595,771  blackmatrix7 AdvertisingLite（域名集）
 OK          376     12,869  blackmatrix7 AdvertisingLite（关键词 + IP）
