@@ -1,15 +1,15 @@
 # 上游校验状态
 
-最近一次运行：2026-11-03 07:23 UTC
+最近一次运行：2026-11-04 07:05 UTC
 
 ```
-上游规则源校验 · 2026-11-03 15:23 (UTC+8)
+上游规则源校验 · 2026-11-04 15:05 (UTC+8)
 
 状态           条数         字节  名称
 OK      101,785  2,046,566  anti-AD 主列表
 OK      290,392  5,906,886  blackmatrix7 Advertising（域名集）
 OK          781     26,853  blackmatrix7 Advertising（关键词 + IP + 正则）
-OK       37,692    595,771  blackmatrix7 AdvertisingLite（域名集）
+FAIL          -          -  blackmatrix7 AdvertisingLite（域名集）  ← HTTP Error 403: Forbidden
 OK          376     12,869  blackmatrix7 AdvertisingLite（关键词 + IP）
 OK          205      8,254  LOWERTOP AntiAD（严格档专用）
 OK           13      1,281  知乎广告 · 域名/IP 层（官方 ZhihuAds，内联）
@@ -19,7 +19,8 @@ OK           10          —  哔哩哔哩 去广告 · URL 重写（内联）�
 OK            9          —  哔哩哔哩 去广告 · 脚本（内联）（内联，仅本地校验）
 OK            1          —  微信公众号去广告 · 脚本（内联）（内联，仅本地校验）
 
-全部正常。
+发现异常：
+  · bm-lite-domain: 不可达 — HTTP Error 403: Forbidden
 ```
 
 > 本文件由 verify-sources workflow 自动生成，不要手动编辑。
